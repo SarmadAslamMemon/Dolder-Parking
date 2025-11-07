@@ -70,15 +70,21 @@
 </div>
 {% endif %}
 
-{% if uploaded_files %}
 <section class="card form-card">
 	<div class="card-header">
 		<h3 class="card-title">
 			<i class="fas fa-list"></i>
 			Hochgeladene Dateien
+			{% if current_user.permission.name == 'ALL' %}
+			<span style="font-size: 0.875rem; color: #a0aec0; margin-left: 0.5rem;">(Alle Benutzer)</span>
+			{% else %}
+			<span style="font-size: 0.875rem; color: #a0aec0; margin-left: 0.5rem;">(Nur Ihre Dateien)</span>
+			{% endif %}
 		</h3>
 	</div>
+	{% if uploaded_files and uploaded_files|length > 0 %}
 	<div class="uploaded-files-list">
+		<!-- DEBUG: uploaded_files count = {{ uploaded_files|length }} -->
 		{% for file in uploaded_files %}
 		<div class="uploaded-file-item">
 			<div class="file-info">
@@ -86,9 +92,21 @@
 				<span class="file-link">
 					<a href="/page/{{ file.id }}">Seite {{ file.id }}</a>
 				</span>
+				<span class="file-user">
+					<i class="fas fa-user"></i>
+					{% if file.username %}
+					{{ file.username }} (ID: {{ file.user_id }})
+					{% else %}
+					{{ current_user.username }} (ID: {{ current_user.id }})
+					{% endif %}
+				</span>
 				<span class="file-date">
 					<i class="fas fa-calendar"></i>
+					{% if file.created_at %}
 					{{ file.created_at.strftime('%Y-%m-%d %H:%M') }}
+					{% else %}
+					-
+					{% endif %}
 				</span>
 			</div>
 			<div class="file-actions">
@@ -106,8 +124,12 @@
 		</div>
 		{% endfor %}
 	</div>
+	{% else %}
+	<div class="uploaded-files-list">
+		<p style="color: #a0aec0; padding: 1rem; text-align: center;">Keine Dateien hochgeladen.</p>
+	</div>
+	{% endif %}
 </section>
-{% endif %}
 
 {% endblock %}
 

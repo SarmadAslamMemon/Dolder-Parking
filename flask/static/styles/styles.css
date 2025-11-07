@@ -3329,6 +3329,32 @@ textarea:focus,
   font-size: 0.875rem;
 }
 
+.file-user {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #7cc2ff;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.file-user i {
+  color: #7cc2ff;
+  font-size: 0.875rem;
+}
+
+.file-owner-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.2rem 0.5rem;
+  background: rgba(124, 194, 255, 0.2);
+  border: 1px solid rgba(124, 194, 255, 0.4);
+  border-radius: 4px;
+  color: #7cc2ff;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 .btn-sm {
   padding: 0.4rem 0.8rem;
   font-size: 0.875rem;
