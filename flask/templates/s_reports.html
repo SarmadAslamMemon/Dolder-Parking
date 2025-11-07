@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Berichte{% endblock %}
+{% block content %}
+
+<section class="page-header">
+	<h1 class="page-title">
+		<i class="fas fa-chart-bar"></i>
+		Dolder Parking Berichte
+	</h1>
+	<div class="page-actions">
+		{% if session.name %}
+			<span class="user-badge">
+				<i class="fas fa-user"></i>
+				Angemeldet als {{ session.name }}
+			</span>
+		{% endif %}
+		<form action="#" method="post" class="inline">
+			<button type="submit" value="back" name="back" class="btn btn-outline">
+				<i class="fas fa-arrow-left"></i>
+				Zurück
+			</button>
+		</form>
+	</div>
+</section>
+
+<section class="card form-card">
+	<div class="card-header">
+		<h3 class="card-title">
+			<i class="fas fa-calendar-alt"></i>
+			Zeitraum auswählen
+		</h3>
+	</div>
+	<form action="#" method="post" class="form">
+		<div class="form-section">
+			<div class="date-grid">
+				<div class="date-field">
+					<label class="label" for="startDate">
+						<i class="fas fa-calendar-plus"></i>
+						Von Datum
+					</label>
+					<input class="input" type="date" name="startDate" id="startDate" />
+				</div>
+				<div class="date-field">
+					<label class="label" for="endDate">
+						<i class="fas fa-calendar-check"></i>
+						Bis Datum
+					</label>
+					<input class="input" type="date" name="endDate" id="endDate" value="{{ today }}" />
+				</div>
+			</div>
+		</div>
+		
+		<div class="form-footer">
+			<button type="submit" value="generate" name="generate" class="save-btn btn-primary">
+				<i class="fas fa-file-export"></i>
+				Bericht erstellen
+			</button>
+		</div>
+	</form>
+</section>
+
+{% if exportDone: %}
+<div class="notice success">
+	<i class="fas fa-check-circle"></i>
+	<span>Export generiert.</span>
+	<a class="btn btn-outline" href="{{ url_for('download') }}">
+		<i class="fas fa-download"></i>
+		Download
+	</a>
+</div>
+{% endif %}
+
+{% if dateWrong: %}
+<div class="notice danger">
+	<i class="fas fa-exclamation-triangle"></i>
+	Datumseingabe fehlerhaft
+</div>
+{% endif %}
+
+{% endblock %}

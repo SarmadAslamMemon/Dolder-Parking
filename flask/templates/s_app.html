@@ -1,0 +1,578 @@
+{% extends "base.html" %}
+{% block title %}Neuer Fall{% endblock %}
+{% block content %}
+
+<section class="page-header">
+	<h1 class="page-title">
+		<i class="fas fa-plus-circle"></i>
+		Neuer Fall - Dolder Parking
+	</h1>
+	<div class="page-actions">
+		{% if session.name %}
+			<span class="user-badge">
+				<i class="fas fa-user"></i>
+				{{ session.name }}
+			</span>
+		{% endif %}
+	</div>
+</section>
+
+<section class="card form-card">
+	<form action="#" method="post" id="searchForm" class="form" autocomplete="off" novalidate>
+		<div class="search-main-row">
+			<div class="search-input-section">
+				<label class="label" for="next_bussennr">
+					<i class="fas fa-hashtag"></i>
+					Bussennummer
+				</label>
+				<input type="number" 
+					   class="input" 
+					   name="next_bussennr" 
+					   id="next_bussennr" 
+					   value="{{ nextnum|default('', true) }}" 
+					   placeholder="Bussennummer" 
+					   autocomplete="off"
+					   inputmode="numeric">
+			</div>
+			<div class="search-actions">
+				<button type="submit" value="gotonr" name="gotonr" class="btn btn-primary" id="gotoButton">
+					<i class="fas fa-arrow-right"></i>
+					Gehe zu
+				</button>
+			</div>
+		</div>
+	</form>
+
+	{% if nextnum is not none and nextnum != '' %}
+		{% if not doesExist %}
+			<div class="notice success" aria-live="polite">
+				<i class="fas fa-check-circle"></i>
+				<span>Nummer {{ nextnum }} ist frei.</span>
+			</div>
+		{% endif %}
+	{% endif %}
+
+	{% if doesExist and nextnum and request.method == 'POST' %}
+		<div id="errorMessage" class="notice danger">
+			<i class="fas fa-exclamation-triangle"></i>
+			<span>Achtung: Nummer {{ nextnum }} existiert bereits. Sie können trotzdem ein neues Foto hinzufügen.</span>
+		</div>
+	{% endif %}
+	{% if wrongFile and request.method == 'POST' %}
+		<div id="fileError" class="notice danger">
+			<i class="fas fa-exclamation-triangle"></i>
+			<span>Kein Bild ausgewählt oder falsches Format</span>
+		</div>
+	{% endif %}
+</section>
+
+<section class="card case-info-card">
+	<div class="image-frame">
+		{% if htmlpath %}
+			<img src="{{ htmlpath }}" alt="Vorschau" class="case-thumbnail" id="imagePreview">
+		{% else %}
+			<div id="noImage" style="text-align: center; padding: 2rem;">
+				<i class="fas fa-image" style="font-size: 3rem; color: #cfd7df; opacity: 0.3;"></i>
+				<p style="color: #cfd7df; margin-top: 0.5rem;">Kein Bild ausgewählt</p>
+			</div>
+		{% endif %}
+	</div>
+
+	<form action="#" method="post" enctype="multipart/form-data" id="cameraForm" class="hidden">
+		<input type="file" id="cameraInput" name="file" accept="image/*" capture="environment">
+	</form>
+	
+	<form action="#" method="post" enctype="multipart/form-data" id="galleryForm" class="hidden">
+		<input type="file" id="galleryInput" name="file" accept="image/*">
+	</form>
+	
+	{% if not doesExist %}
+	<div class="form-footer">
+		<div class="action-buttons" style="flex-direction: column; gap: 1rem;">
+			<div style="display: flex; gap: 1rem; width: 100%;">
+				<button type="button" onclick="document.getElementById('cameraInput').click()" class="btn btn-primary" style="flex: 1;">
+					<i class="fas fa-camera"></i>
+					Kamera
+				</button>
+				
+				<button type="button" onclick="document.getElementById('galleryInput').click()" class="btn btn-outline" style="flex: 1;">
+					<i class="fas fa-images"></i>
+					Galerie
+				</button>
+			</div>
+			
+			{% if htmlpath %}
+			<div style="display: flex; gap: 1rem; width: 100%;">
+				<form action="#" method="post" style="flex: 1;">
+					<button type="submit" value="doneall" name="doneall" class="btn btn-primary full">
+						<i class="fas fa-save"></i>
+						Speichern
+					</button>
+				</form>
+				<form action="#" method="post" style="flex: 1;">
+					<button type="submit" value="delall" name="delall" class="btn btn-outline full">
+						<i class="fas fa-trash"></i>
+						Löschen
+					</button>
+				</form>
+			</div>
+			{% endif %}
+		</div>
+	</div>
+	{% endif %}
+</section>
+
+<style>
+.hidden {
+	display: none;
+}
+
+/* Mobile: Non-scrollable, single viewport layout */
+@media (max-width: 768px) {
+	/* Lock viewport height - prevent scrolling */
+	html, body {
+		height: 100dvh;
+		overflow: hidden;
+		margin: 0;
+		padding: 0;
+	}
+	
+	main.main-content {
+		height: calc(100dvh - 60px); /* Subtract navbar height */
+		overflow: hidden;
+		padding: 0.5rem 0;
+		margin: 0;
+	}
+	
+	.container {
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+		padding: 0 0.75rem;
+	}
+	
+	/* Compact page header */
+	section.page-header {
+		flex-shrink: 0;
+		padding: 0.5rem 0;
+		margin: 0;
+		gap: 0.5rem;
+	}
+	
+	.page-title {
+		font-size: 1.25rem;
+		margin: 0;
+		gap: 0.5rem;
+	}
+	
+	.page-title i {
+		font-size: 1rem;
+	}
+	
+	.user-badge {
+		font-size: 0.75rem;
+		padding: 0.3rem 0.6rem;
+	}
+	
+	/* Compact form card */
+	section.form-card {
+		flex-shrink: 0;
+		padding: 0.75rem;
+		margin-bottom: 0.5rem;
+		border-radius: 8px;
+	}
+	
+	.search-main-row {
+		gap: 0.5rem;
+		margin-bottom: 0;
+	}
+	
+	.search-input-section .label {
+		font-size: 0.85rem;
+		margin-bottom: 0.25rem;
+	}
+	
+	.search-input-section .input {
+		height: 40px;
+		padding: 0.5rem 0.75rem;
+		font-size: 0.95rem;
+	}
+	
+	.search-actions .btn {
+		height: 40px;
+		padding: 0.5rem 1rem;
+		font-size: 0.85rem;
+	}
+	
+	/* Compact notices */
+	.notice {
+		padding: 0.5rem 0.75rem;
+		margin: 0.5rem 0 0;
+		font-size: 0.85rem;
+		gap: 0.5rem;
+	}
+	
+	.notice i {
+		font-size: 0.9rem;
+	}
+	
+	/* Compact image section - fit remaining space */
+	section.case-info-card {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+		padding: 0.75rem;
+		margin: 0;
+		border-radius: 8px;
+		min-height: 0;
+	}
+	
+	.image-frame {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.5rem;
+		margin-bottom: 0.5rem;
+		max-height: 200px;
+		border-radius: 8px;
+	}
+	
+	.image-frame img.case-thumbnail {
+		max-height: 180px;
+		max-width: 100%;
+		object-fit: contain;
+	}
+	
+	.image-frame #noImage {
+		padding: 1rem;
+	}
+	
+	.image-frame #noImage i {
+		font-size: 2rem !important;
+	}
+	
+	.image-frame #noImage p {
+		font-size: 0.85rem;
+		margin-top: 0.25rem;
+	}
+	
+	/* Compact action buttons */
+	.form-footer {
+		flex-shrink: 0;
+		margin-top: auto;
+		padding-top: 0.5rem;
+	}
+	
+	.action-buttons {
+		gap: 0.5rem;
+	}
+	
+	.action-buttons > div {
+		gap: 0.5rem;
+	}
+	
+	.action-buttons .btn {
+		padding: 0.6rem 0.75rem;
+		font-size: 0.85rem;
+		height: 44px;
+	}
+	
+	.action-buttons .btn i {
+		font-size: 0.9rem;
+	}
+	
+	/* Hide desktop text on buttons */
+	.desktop-text {
+		display: none !important;
+	}
+}
+
+/* Smaller mobile devices */
+@media (max-width: 480px) {
+	html, body {
+		height: 100dvh;
+		overflow: hidden;
+	}
+	
+	main.main-content {
+		height: calc(100dvh - 55px);
+		padding: 0.25rem 0;
+	}
+	
+	.container {
+		padding: 0 0.5rem;
+	}
+	
+	section.page-header {
+		padding: 0.25rem 0;
+	}
+	
+	.page-title {
+		font-size: 1.1rem;
+	}
+	
+	section.form-card {
+		padding: 0.5rem;
+		margin-bottom: 0.25rem;
+	}
+	
+	.image-frame {
+		max-height: 150px;
+	}
+	
+	.image-frame img.case-thumbnail {
+		max-height: 130px;
+	}
+	
+	.action-buttons .btn {
+		height: 40px;
+		padding: 0.5rem;
+		font-size: 0.8rem;
+	}
+}
+</style>
+
+<script>
+// Track if image has been uploaded
+let imageUploaded = false;
+// Track if form is being submitted (to avoid popup on form submission)
+let formSubmitting = false;
+
+// Clear form and errors on page load
+window.addEventListener('DOMContentLoaded', function() {
+    // Check if page was refreshed with an uploaded image
+    const wasRefreshed = sessionStorage.getItem('imageWasUploaded');
+    const imagePreview = document.getElementById('imagePreview');
+    
+    if (wasRefreshed === 'true' && imagePreview) {
+        // User refreshed the page after uploading - clear the image
+        clearUploadedImage();
+        sessionStorage.removeItem('imageWasUploaded');
+    } else if (imagePreview) {
+        // Image exists, mark as uploaded
+        imageUploaded = true;
+        sessionStorage.setItem('imageWasUploaded', 'true');
+    }
+    
+    // Clear URL parameters to prevent form resubmission on refresh
+    if (window.history.replaceState) {
+        window.history.replaceState(null, null, window.location.pathname);
+    }
+    
+    // Reset formSubmitting flag after page load
+    formSubmitting = false;
+});
+
+// Show alert when user manually tries to refresh/leave page with uploaded image
+// BUT NOT when forms are submitting (normal page reloads)
+window.addEventListener('beforeunload', function(e) {
+    // Only show popup if:
+    // 1. Image has been uploaded
+    // 2. It's NOT a form submission (manual reload/close)
+    if (imageUploaded && !formSubmitting) {
+        // Standard way to show confirmation dialog
+        e.preventDefault();
+        e.returnValue = ''; // Chrome requires returnValue to be set
+        
+        // Custom message (note: most modern browsers ignore custom messages)
+        return 'Sie haben ein Bild hochgeladen. Möchten Sie die Seite wirklich verlassen? Das Bild wird gelöscht.';
+    }
+});
+
+// Clear uploaded image and reset state
+function clearUploadedImage() {
+    const container = document.querySelector('.image-frame');
+    if (container) {
+        container.innerHTML = `
+            <div id="noImage" style="text-align: center; padding: 2rem;">
+                <i class="fas fa-image" style="font-size: 3rem; color: #cfd7df; opacity: 0.3;"></i>
+                <p style="color: #cfd7df; margin-top: 0.5rem;">Kein Bild ausgewählt</p>
+            </div>
+        `;
+    }
+    
+    // Clear file inputs
+    const cameraInput = document.getElementById('cameraInput');
+    const galleryInput = document.getElementById('galleryInput');
+    if (cameraInput) cameraInput.value = '';
+    if (galleryInput) galleryInput.value = '';
+    
+    // Clear error messages
+    const errorMessages = document.querySelectorAll('.notice.danger');
+    errorMessages.forEach(error => error.remove());
+    
+    // Reset upload state
+    imageUploaded = false;
+    sessionStorage.removeItem('imageWasUploaded');
+}
+
+// Update image preview when a file is selected
+function updateImagePreview(input) {
+    const preview = document.getElementById('imagePreview');
+    const noImage = document.getElementById('noImage');
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            const container = document.querySelector('.image-frame');
+            if (!preview) {
+                const img = document.createElement('img');
+                img.id = 'imagePreview';
+                img.className = 'case-thumbnail';
+                img.src = e.target.result;
+                container.innerHTML = '';
+                container.appendChild(img);
+            } else {
+                preview.src = e.target.result;
+            }
+            
+            // Mark that image has been uploaded
+            imageUploaded = true;
+            sessionStorage.setItem('imageWasUploaded', 'true');
+            
+            // Mark that we're submitting a form (to avoid popup)
+            formSubmitting = true;
+            
+            // Auto-submit the form after image selection
+            input.form.submit();
+        }
+        
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// Reattach all interactive handlers (used on initial load and after DOM updates)
+function initInteractiveHandlers() {
+    // Handle camera input
+    const cameraInput = document.getElementById('cameraInput');
+    if (cameraInput) {
+        cameraInput.addEventListener('change', function() {
+            updateImagePreview(this);
+        }, { once: false });
+    }
+    
+    // Handle gallery input
+    const galleryInput = document.getElementById('galleryInput');
+    if (galleryInput) {
+        galleryInput.addEventListener('change', function() {
+            updateImagePreview(this);
+        }, { once: false });
+    }
+    
+    // Clear session storage when user saves or deletes the image
+    const saveButton = document.querySelector('button[name="doneall"]');
+    const deleteButton = document.querySelector('button[name="delall"]');
+    
+    if (saveButton) {
+        saveButton.addEventListener('click', function() {
+            formSubmitting = true;
+            imageUploaded = false;
+            sessionStorage.removeItem('imageWasUploaded');
+        }, { once: false });
+    }
+    
+    if (deleteButton) {
+        deleteButton.addEventListener('click', function() {
+            formSubmitting = true;
+            imageUploaded = false;
+            sessionStorage.removeItem('imageWasUploaded');
+        }, { once: false });
+    }
+
+    // Handle form submission using fetch (like working code) to prevent redirect issues on mobile
+    const gotoForm = document.getElementById('searchForm');
+    if (gotoForm && !gotoForm.dataset.boundSubmit) {
+        gotoForm.dataset.boundSubmit = 'true';
+        gotoForm.addEventListener('submit', async function (e) {
+            e.preventDefault(); // Prevent normal form submission
+            formSubmitting = true;
+            
+            const form = e.currentTarget;
+            const inputField = document.getElementById('next_bussennr');
+            const fd = new FormData(form);
+            if (!fd.has('gotonr')) fd.append('gotonr', 'gotonr');
+            
+            try {
+                // POST request and get response directly
+                const resp = await fetch(window.location.pathname, {
+                    method: 'POST',
+                    body: fd,
+                    credentials: 'same-origin' // Include cookies/session
+                });
+                
+                // Check if redirected to login
+                if (resp.redirected && resp.url.includes('/login')) {
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                const html = await resp.text();
+                
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newFormCard = doc.querySelector('.form-card');
+                const newCaseInfo = doc.querySelector('.case-info-card');
+                const curFormCard = document.querySelector('.form-card');
+                const curCaseInfo = document.querySelector('.case-info-card');
+                
+                if (newFormCard && curFormCard) {
+                    curFormCard.outerHTML = newFormCard.outerHTML;
+                }
+                if (newCaseInfo && curCaseInfo) {
+                    curCaseInfo.outerHTML = newCaseInfo.outerHTML;
+                }
+                
+                // Clear the input field after submission
+                const newInputField = document.getElementById('next_bussennr');
+                if (newInputField) {
+                    newInputField.value = '';
+                } else if (inputField) {
+                    inputField.value = '';
+                }
+                
+                // Reinitialize handlers on the newly injected DOM
+                initInteractiveHandlers();
+                history.replaceState(null, '', window.location.pathname);
+            } catch (err) {
+                console.error('Form submission error:', err);
+                // On error, allow normal form submission as fallback
+                const inputField = document.getElementById('next_bussennr');
+                if (inputField) {
+                    inputField.value = '';
+                }
+                history.replaceState(null, '', window.location.pathname);
+            }
+        });
+    }
+    
+    // Also mark save/delete buttons as form submissions
+    const saveForm = document.querySelector('form button[name="doneall"]');
+    const deleteForm = document.querySelector('form button[name="delall"]');
+    if (saveForm && saveForm.form) {
+        saveForm.form.addEventListener('submit', function() {
+            formSubmitting = true;
+            imageUploaded = false; // Clear upload state when saving
+            sessionStorage.removeItem('imageWasUploaded');
+        });
+    }
+    if (deleteForm && deleteForm.form) {
+        deleteForm.form.addEventListener('submit', function() {
+            formSubmitting = true;
+            imageUploaded = false; // Clear upload state when deleting
+            sessionStorage.removeItem('imageWasUploaded');
+        });
+    }
+}
+
+// Initialize event listeners when the document is ready
+document.addEventListener('DOMContentLoaded', function() {
+    initInteractiveHandlers();
+});
+</script>
+
+{% endblock %}

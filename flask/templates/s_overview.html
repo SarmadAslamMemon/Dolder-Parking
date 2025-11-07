@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+{% block title %}Fallübersicht{% endblock %}
+{% block content %}
+
+<section class="page-header">
+	<h1 class="page-title">
+		<i class="fas fa-list"></i>
+		Fallübersicht
+	</h1>
+	<div class="page-actions">
+		{% if session.name %}
+			<span class="user-badge">
+				<i class="fas fa-user"></i>
+				{{ session.name }}
+			</span>
+		{% endif %}
+		<a href="/s_reports" class="btn btn-outline">
+			<i class="fas fa-chart-bar"></i>
+			Berichte
+		</a>
+		<a href="/s_app" class="btn btn-primary">
+			<i class="fas fa-plus"></i>
+			Neuer Fall
+		</a>
+		<a href="/logout" class="btn btn-outline">
+			<i class="fas fa-sign-out-alt"></i>
+			Logout
+		</a>
+	</div>
+</section>
+
+<!-- Search Section -->
+<section class="card form-card">
+	<div class="card-header">
+		<h3 class="card-title">
+			<i class="fas fa-search"></i>
+			Fall suchen
+		</h3>
+	</div>
+	<form action="#" method="post" id="searchForm" class="form">
+		<div class="search-main-row">
+			<div class="search-input-section">
+				<label class="label" for="BussenNr">
+					<i class="fas fa-hashtag"></i>
+					Bussennummer
+				</label>
+				<div class="input-with-buttons">
+					<button type="button" class="nav-btn" title="Vorherige Nummer" onclick="document.getElementById('actionType').name='nrminus'; document.getElementById('actionType').value='nrminus'; this.form.submit();">
+						<i class="fas fa-chevron-left"></i>
+					</button>
+					<input 
+						type="number" 
+						id="BussenNr"
+						name="db_bussennr" 
+						placeholder="Bussennummer eingeben..." 
+						class="search-input input"
+						value=""
+						autocomplete="off"
+					/>
+					<button type="button" class="nav-btn" title="Nächste Nummer" onclick="document.getElementById('actionType').name='nrplus'; document.getElementById('actionType').value='nrplus'; this.form.submit();">
+						<i class="fas fa-chevron-right"></i>
+					</button>
+					<input type="hidden" id="actionType" name="search" value="search">
+				</div>
+			</div>
+			
+			<div class="search-actions">
+				<button type="submit" name="search" value="search" class="btn btn-primary">
+					<i class="fas fa-search"></i>
+					<span>Suchen</span>
+				</button>
+				
+				<button type="submit" name="lastnr" value="lastnr" class="btn btn-outline">
+					<i class="fas fa-history"></i>
+					<span>Letzte BussenNr</span>
+				</button>
+			</div>
+		</div>
+		
+		<div class="search-options-row">
+			<div class="checkbox-section">
+				<input type="checkbox" id="onlyopen" name="onlyopen" value="onlyopen" {% if OnlyOpenCase %}checked{% endif %}>
+				<label class="checkbox-label" for="onlyopen">
+					<i class="fas fa-filter"></i>
+					Nur offene Fälle anzeigen
+				</label>
+			</div>
+		</div>
+	</form>
+	
+	{% if nfound %}
+	<div class="notice danger">
+		<i class="fas fa-exclamation-triangle"></i>
+		<span>Nummer nicht vorhanden</span>
+	</div>
+	{% endif %}
+</section>
+
+<!-- Case Info Section -->
+{% if not nfound and busse %}
+<section class="card case-info-card">
+	<form action="/{{ busse.db_bussennr }}" method="post" id="caseForm">
+		<div class="card-header">
+			<h3 class="card-title">
+				<i class="fas fa-file-alt"></i>
+				Fall Details
+			</h3>
+		</div>
+		
+		<!-- Case Header Info -->
+		<div class="case-header">
+			<div class="case-field">
+				<div class="case-label">
+					<i class="fas fa-hashtag"></i>
+					Aktuelle Bussennummer
+				</div>
+				<div class="case-value">{{ busse.db_bussennr }}</div>
+			</div>
+			<div class="case-field">
+				<div class="case-label">
+					<i class="fas fa-calendar"></i>
+					Aufnahmedatum
+				</div>
+				<div class="case-value">{{ busse.db_aufnahmedatum.strftime('%d.%m.%Y %H:%M') }}</div>
+			</div>
+			<div class="case-field">
+				<div class="case-label">
+					<i class="fas fa-info-circle"></i>
+					Status
+				</div>
+				<div class="status-item {% if busse.db_status == 1 %}open{% elif busse.db_status == 2 %}canceled{% elif busse.db_status == 3 %}closed{% else %}unknown{% endif %}">
+					{% if busse.db_status == 1 %}
+						<i class="fas fa-circle"></i><span>Offen</span>
+					{% elif busse.db_status == 2 %}
+						<i class="fas fa-times-circle"></i><span>Abgebrochen</span>
+					{% elif busse.db_status == 3 %}
+						<i class="fas fa-check-circle"></i><span>Abgeschlossen</span>
+					{% else %}
+						<i class="fas fa-question-circle"></i><span>Unbekannt</span>
+					{% endif %}
+				</div>
+			</div>
+		</div>
+		
+		<!-- Main Content -->
+		<div class="case-content">
+			<div class="case-content-main">
+				<!-- Reminders Section -->
+				<div class="form-section">
+					<h4 class="section-title">
+						<i class="fas fa-envelope"></i>
+						Mahnungen
+					</h4>
+					<div class="reminder-buttons">
+						<div class="field">
+							<label class="label">
+								<i class="fas fa-1"></i>
+								1. Mahnung - Datum
+							</label>
+							<input type="date" name="db_mahndatum_1" value="{{ busse.db_mahndatum_1.strftime('%Y-%m-%d') if busse.db_mahndatum_1 else '' }}" class="input">
+						</div>
+						<div class="field">
+							<label class="label">
+								<i class="fas fa-check"></i>
+								1. Mahnung - Bezahlt
+							</label>
+							<input type="date" name="db_bezahlt_1" value="{{ busse.db_bezahlt_1.strftime('%Y-%m-%d') if busse.db_bezahlt_1 else '' }}" class="input">
+						</div>
+						<div class="field">
+							<label class="label">
+								<i class="fas fa-2"></i>
+								2. Mahnung - Datum
+							</label>
+							<input type="date" name="db_mahndatum_2" value="{{ busse.db_mahndatum_2.strftime('%Y-%m-%d') if busse.db_mahndatum_2 else '' }}" class="input">
+						</div>
+						<div class="field">
+							<label class="label">
+								<i class="fas fa-check"></i>
+								2. Mahnung - Bezahlt
+							</label>
+							<input type="date" name="db_bezahlt_2" value="{{ busse.db_bezahlt_2.strftime('%Y-%m-%d') if busse.db_bezahlt_2 else '' }}" class="input">
+						</div>
+						<div class="field">
+							<label class="label">
+								<i class="fas fa-3"></i>
+								3. Mahnung - Datum
+							</label>
+							<input type="date" name="db_mahndatum_3" value="{{ busse.db_mahndatum_3.strftime('%Y-%m-%d') if busse.db_mahndatum_3 else '' }}" class="input">
+						</div>
+						<div class="field">
+							<label class="label">
+								<i class="fas fa-check"></i>
+								3. Mahnung - Bezahlt
+							</label>
+							<input type="date" name="db_bezahlt_3" value="{{ busse.db_bezahlt_3.strftime('%Y-%m-%d') if busse.db_bezahlt_3 else '' }}" class="input">
+						</div>
+					</div>
+				</div>
+				
+				<!-- Details Section -->
+				<div class="form-section">
+					<h4 class="section-title">
+						<i class="fas fa-user"></i>
+						Details
+					</h4>
+					<div class="form-grid">
+						<div class="field">
+							<label class="label">
+								<i class="fas fa-car"></i>
+								Nummernschild
+							</label>
+							<input type="text" name="db_nummerschild" value="{{ busse.db_nummerschild|default('', true) }}" class="input">
+						</div>
+						
+						<div class="field">
+							<label class="label">
+								<i class="fas fa-user"></i>
+								Anrede
+							</label>
+							<input type="text" name="db_anrede" value="{{ busse.db_anrede|default('', true) }}" class="input">
+						</div>
+						
+						<div class="field">
+							<label class="label">
+								<i class="fas fa-signature"></i>
+								Name
+							</label>
+							<input type="text" name="db_name" value="{{ busse.db_name|default('', true) }}" class="input">
+						</div>
+						
+						<div class="field">
+							<label class="label">
+								<i class="fas fa-road"></i>
+								Strasse
+							</label>
+							<input type="text" name="db_strasse" value="{{ busse.db_strasse|default('', true) }}" class="input">
+						</div>
+						
+						<div class="field">
+							<label class="label">
+								<i class="fas fa-building"></i>
+								Zusatz
+							</label>
+							<input type="text" name="db_zusatz" value="{{ busse.db_zusatz|default('', true) }}" class="input">
+						</div>
+						
+						<div class="field">
+							<label class="label">
+								<i class="fas fa-mail-bulk"></i>
+								PLZ
+							</label>
+							<input type="text" name="db_plz" value="{{ busse.db_plz|default('', true) }}" class="input">
+						</div>
+						
+						<div class="field">
+							<label class="label">
+								<i class="fas fa-map-marker-alt"></i>
+								Ort
+							</label>
+							<input type="text" name="db_ort" value="{{ busse.db_ort|default('', true) }}" class="input">
+						</div>
+						
+						<div class="field">
+							<label class="label">
+								<i class="fas fa-globe"></i>
+								Land
+							</label>
+							<input type="text" name="db_land" value="{{ busse.db_land|default('', true) }}" class="input">
+						</div>
+					</div>
+				</div>
+				
+				<!-- Notes Section -->
+				<div class="form-section">
+					<h4 class="section-title">
+						<i class="fas fa-sticky-note"></i>
+						Notizen
+					</h4>
+					<div class="field full">
+						<textarea name="db_notes" class="textarea input">{{ busse.db_notes|default('', true) }}</textarea>
+					</div>
+				</div>
+			</div>
+			
+			<!-- Case Image -->
+			<div class="image-frame case-image-mobile">
+				{% if htmlpath %}
+				<a href="{{ htmlpath }}" target="_blank" title="Bild in neuem Tab öffnen">
+					<img src="{{ htmlpath }}" alt="Fall Vorschau" class="case-thumbnail">
+				</a>
+				{% else %}
+				<div style="color: #cfd7df; text-align: center; padding: 2rem 1rem;">
+					<i class="fas fa-image" style="font-size: 3rem; opacity: 0.3; margin-bottom: 0.5rem; display: block;"></i>
+					<span>Kein Bild vorhanden</span>
+				</div>
+				{% endif %}
+			</div>
+		</div>
+		
+		<!-- Action Buttons -->
+		<div class="form-footer">
+			<div class="action-buttons">
+				<button type="submit" name="save" value="save" class="btn btn-primary">
+					<i class="fas fa-save"></i>
+					Speichern
+				</button>
+				<button type="submit" name="close" value="close" class="action-btn close-btn">
+					<i class="fas fa-check-circle"></i>
+					Abschließen
+				</button>
+				<button type="submit" name="cancel" value="cancel" class="action-btn cancel-btn">
+					<i class="fas fa-times-circle"></i>
+					Abbrechen
+				</button>
+				<button type="submit" name="reopen" value="reopen" class="action-btn reopen-btn">
+					<i class="fas fa-redo"></i>
+					Wiedereröffnen
+				</button>
+			</div>
+			
+			<!-- Reminder Action Buttons -->
+			<div class="reminder-buttons" style="margin-top: 1.5rem;">
+				<button type="submit" name="reminder1" value="reminder1" class="reminder-btn">
+					<i class="fas fa-envelope"></i>
+					1. Mahnung eAutoindex
+				</button>
+				<button type="submit" name="reminder2" value="reminder2" class="reminder-btn">
+					<i class="fas fa-envelope"></i>
+					1. Mahnung Halterabfrage
+				</button>
+				<button type="submit" name="reminder3" value="reminder3" class="reminder-btn">
+					<i class="fas fa-envelope"></i>
+					2. Mahnung eAutoindex
+				</button>
+				<button type="submit" name="reminder4" value="reminder4" class="reminder-btn">
+					<i class="fas fa-envelope"></i>
+					2. Mahnung Halterabfrage
+				</button>
+			</div>
+			
+			{% if exportFailed %}
+			<div class="notice danger" style="margin-top: 1rem;">
+				<i class="fas fa-exclamation-triangle"></i>
+				<span>Mahnung erstellen fehlgeschlagen</span>
+			</div>
+			{% endif %}
+		</div>
+	</form>
+</section>
+{% endif %}
+
+<script>
+// Keep the search field empty after submit and on reload
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('searchForm');
+    const input = document.getElementById('BussenNr');
+    if (form && input) {
+        // Clear on load only (keep user's typed value on submit)
+        form.reset();
+        if (input) input.value = '';
+        // Prevent resubmit prompt on refresh
+        if (window.history.replaceState) {
+            window.history.replaceState(null, null, window.location.pathname);
+        }
+        
+        // Handle Enter key press to trigger search
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.keyCode === 13) {
+                e.preventDefault();
+                // Ensure search action is set
+                const actionInput = document.getElementById('actionType');
+                if (actionInput) {
+                    actionInput.name = 'search';
+                    actionInput.value = 'search';
+                }
+                form.submit();
+            }
+        });
+    }
+});
+</script>
+
+{% endblock %}

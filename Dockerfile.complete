@@ -1,0 +1,71 @@
+# Complete Docker image with Flask app + SQLite database
+FROM python:3.11-slim-bookworm
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    jq \
+    build-essential \
+    pkg-config \
+    libffi-dev \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libgdk-pixbuf2.0-dev \
+    shared-mime-info \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY flask/requirements.txt /app/requirements.txt
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install SQLite support
+RUN pip install --no-cache-dir sqlite3
+
+# Copy application code
+COPY flask/ /app/
+
+# Create directories for data
+RUN mkdir -p /app/data/cars /app/data/mysql /app/flask_session
+
+# Set environment variables for SQLite
+ENV DB_USER=app
+ENV DB_PASS=
+ENV DB_URL=localhost
+ENV DB_PORT=5432
+ENV DB_NAME=/app/dolderpark.db
+ENV M_MAHN1=76.20
+ENV M_MAHN2=91.20
+ENV M_MAHN3=118.00
+ENV M_MAHN4=133.00
+ENV PYTHONUNBUFFERED=1
+ENV TZ=Europe/Zurich
+
+# Create a startup script
+RUN echo '#!/bin/bash\n\
+echo "Starting Dolder Parking App..."\n\
+echo "Initializing database..."\n\
+python3 -c "\n\
+import os\n\
+os.environ[\"SQLALCHEMY_DATABASE_URI\"] = \"sqlite:///dolderpark.db\"\n\
+from app import app, db\n\
+with app.app_context():\n\
+    db.create_all()\n\
+    print(\"Database initialized successfully\")\n\
+"\n\
+echo "Starting Flask application..."\n\
+exec gunicorn -w 3 -t 60 -b 0.0.0.0:8000 app:app\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/flask-health-check || exit 1
+
+# Use the startup script
+CMD ["/app/start.sh"]
+

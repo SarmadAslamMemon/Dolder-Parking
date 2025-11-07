@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Startseite{% endblock %}
+
+{% block content %}
+<section class="hero">
+	<h1 class="hero-title">
+		<img src="{{ url_for('static', filename='applogo.png') }}" alt="Dolder Parking Logo" class="hero-logo">
+	</h1>
+	<p class="hero-subtitle">Professionelle Verwaltung von Parkverstößen und Fällen</p>
+	<p class="hero-description">Einfach, effizient und benutzerfreundlich. Verwalten Sie Ihre Fälle, Bilder und Berichte mit unserem modernen System.</p>
+	<div class="hero-actions">
+		<a class="btn btn-primary hero-btn" href="/login">
+			<i class="fas fa-sign-in-alt"></i>
+			<span>Anmelden</span>
+		</a>
+		<a class="btn btn-outline hero-btn" href="/s_app">
+			<i class="fas fa-mobile-alt"></i>
+			<span>Zur App</span>
+		</a>
+	</div>
+</section>
+
+{% if current_user.is_authenticated %}
+	<section class="features-section">
+		<h2 class="section-title">
+			<i class="fas fa-tachometer-alt"></i>
+			Dashboard
+		</h2>
+		<div class="features-grid">
+			<a class="feature-card" href="/s_app">
+				<div class="feature-icon">
+					<i class="fas fa-plus-circle"></i>
+				</div>
+				<h3 class="feature-title">Neue Fälle</h3>
+				<p class="feature-description">Neuen Fall anlegen und Foto hochladen. Schnell und einfach neue Parkverstöße erfassen.</p>
+			</a>
+			<a class="feature-card" href="/s_reports">
+				<div class="feature-icon">
+					<i class="fas fa-chart-bar"></i>
+				</div>
+				<h3 class="feature-title">Berichte</h3>
+				<p class="feature-description">Berichte generieren und exportieren. Übersichtliche Statistiken und Auswertungen.</p>
+			</a>
+			<a class="feature-card" href="/s_overview">
+				<div class="feature-icon">
+					<i class="fas fa-list"></i>
+				</div>
+				<h3 class="feature-title">Übersicht</h3>
+				<p class="feature-description">Alle Fälle verwalten und bearbeiten. Vollständige Kontrolle über Ihre Daten.</p>
+			</a>
+			<a class="feature-card" href="/logout">
+				<div class="feature-icon">
+					<i class="fas fa-sign-out-alt"></i>
+				</div>
+				<h3 class="feature-title">Abmelden</h3>
+				<p class="feature-description">Sitzung sicher beenden. Ihre Daten sind geschützt.</p>
+			</a>
+		</div>
+	</section>
+{% else %}
+	<section class="info-section">
+		<h2 class="section-title">
+			<i class="fas fa-info-circle"></i>
+			Über Dolder Parking
+		</h2>
+		<div class="info-grid">
+			<div class="info-card">
+				<div class="info-icon">
+					<i class="fas fa-shield-alt"></i>
+				</div>
+				<h3 class="info-title">Sicherheit</h3>
+				<p class="info-description">Ihre Daten sind sicher und geschützt. Moderne Verschlüsselung und sichere Speicherung.</p>
+			</div>
+			<div class="info-card">
+				<div class="info-icon">
+					<i class="fas fa-clock"></i>
+				</div>
+				<h3 class="info-title">Effizienz</h3>
+				<p class="info-description">Schnelle Bearbeitung und automatisierte Prozesse. Sparen Sie Zeit bei der Verwaltung.</p>
+			</div>
+			<div class="info-card">
+				<div class="info-icon">
+					<i class="fas fa-mobile-alt"></i>
+				</div>
+				<h3 class="info-title">Mobil</h3>
+				<p class="info-description">Arbeiten Sie von überall. Responsive Design für alle Geräte und Bildschirmgrößen.</p>
+			</div>
+		</div>
+	</section>
+{% endif %}
+
+{% endblock %}

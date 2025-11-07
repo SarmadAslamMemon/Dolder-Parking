@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+	<meta charset="UTF-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+	<link rel="stylesheet" href="{{ url_for('static', filename='styles/styles.css') }}">
+	<title>{% block title %}Dolder Parking{% endblock %}</title>
+	<script>
+		document.addEventListener('DOMContentLoaded', function() {
+			const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+			const mobileMenu = document.getElementById('mobileMenu');
+			
+			if (mobileMenuToggle && mobileMenu) {
+				mobileMenuToggle.addEventListener('click', function() {
+					mobileMenu.classList.toggle('active');
+					const icon = mobileMenuToggle.querySelector('i');
+					if (mobileMenu.classList.contains('active')) {
+						icon.classList.remove('fa-bars');
+						icon.classList.add('fa-times');
+					} else {
+						icon.classList.remove('fa-times');
+						icon.classList.add('fa-bars');
+					}
+				});
+				
+				// Close mobile menu when clicking outside
+				document.addEventListener('click', function(event) {
+					if (!mobileMenuToggle.contains(event.target) && !mobileMenu.contains(event.target)) {
+						mobileMenu.classList.remove('active');
+						const icon = mobileMenuToggle.querySelector('i');
+						icon.classList.remove('fa-times');
+						icon.classList.add('fa-bars');
+					}
+				});
+				
+				// Close mobile menu when clicking on a link
+				const mobileNavLinks = mobileMenu.querySelectorAll('.mobile-nav-link');
+				mobileNavLinks.forEach(link => {
+					link.addEventListener('click', function() {
+						mobileMenu.classList.remove('active');
+						const icon = mobileMenuToggle.querySelector('i');
+						icon.classList.remove('fa-times');
+						icon.classList.add('fa-bars');
+					});
+				});
+			}
+		});
+	</script>
+</head>
+<body>
+	<!-- Enhanced Top Navigation Bar -->
+	<header class="navbar">
+		<div class="nav-container">
+			<div class="nav-left">
+				<a class="brand" href="{% if current_user.is_authenticated %}/s_all{% else %}/{% endif %}">
+					<img src="{{ url_for('static', filename='applogo.png') }}" alt="Dolder Parking Logo" class="brand-logo">
+				</a>
+				<nav class="nav-links">
+					{% if current_user.is_authenticated %}
+						<a href="/s_all" class="nav-link">
+							<i class="fas fa-tachometer-alt"></i>
+							<span>Dashboard</span>
+						</a>
+						<a href="/s_app" class="nav-link">
+							<i class="fas fa-plus-circle"></i>
+							<span>Neue Fälle</span>
+						</a>
+						<a href="/s_reports" class="nav-link">
+							<i class="fas fa-chart-bar"></i>
+							<span>Berichte</span>
+						</a>
+					{% else %}
+						<a href="/login" class="nav-link">
+							<i class="fas fa-sign-in-alt"></i>
+							<span>Login</span>
+						</a>
+						<a href="/s_app" class="nav-link">
+							<i class="fas fa-mobile-alt"></i>
+							<span>App</span>
+						</a>
+					{% endif %}
+				</nav>
+			</div>
+			<div class="nav-right">
+				{% if current_user.is_authenticated %}
+					<div class="user-info">
+						<i class="fas fa-user-circle"></i>
+						<span class="nav-user">{{ session.name }}</span>
+					</div>
+					<a class="btn btn-outline logout-btn" href="/logout">
+						<i class="fas fa-sign-out-alt"></i>
+						<span>Logout</span>
+					</a>
+				{% else %}
+					<a class="btn btn-primary" href="/login">
+						<i class="fas fa-sign-in-alt"></i>
+						<span>Anmelden</span>
+					</a>
+				{% endif %}
+				<button class="mobile-menu-toggle" id="mobileMenuToggle">
+					<i class="fas fa-bars"></i>
+				</button>
+			</div>
+		</div>
+		
+		<!-- Mobile Menu -->
+		<div class="mobile-menu" id="mobileMenu">
+			<nav class="mobile-nav-links">
+				{% if current_user.is_authenticated %}
+					<a href="/s_all" class="mobile-nav-link">
+						<i class="fas fa-tachometer-alt"></i>
+						<span>Dashboard</span>
+					</a>
+					<a href="/s_app" class="mobile-nav-link">
+						<i class="fas fa-plus-circle"></i>
+						<span>Neue Fälle</span>
+					</a>
+					<a href="/s_reports" class="mobile-nav-link">
+						<i class="fas fa-chart-bar"></i>
+						<span>Berichte</span>
+					</a>
+					<div class="mobile-user-section">
+						<div class="mobile-user-info">
+							<i class="fas fa-user-circle"></i>
+							<span>{{ session.name }}</span>
+						</div>
+						<a class="mobile-logout-btn" href="/logout">
+							<i class="fas fa-sign-out-alt"></i>
+							<span>Logout</span>
+						</a>
+					</div>
+				{% else %}
+					<a href="/login" class="mobile-nav-link">
+						<i class="fas fa-sign-in-alt"></i>
+						<span>Login</span>
+					</a>
+					<a href="/s_app" class="mobile-nav-link">
+						<i class="fas fa-mobile-alt"></i>
+						<span>App</span>
+					</a>
+					<a href="/login" class="mobile-nav-link mobile-login-btn">
+						<i class="fas fa-sign-in-alt"></i>
+						<span>Anmelden</span>
+					</a>
+				{% endif %}
+			</nav>
+		</div>
+	</header>
+
+	<!-- Main Content Area -->
+	<main class="main-content">
+		<div class="container">
+			{% block content %}{% endblock %}
+		</div>
+	</main>
+
+</body>
+</html>

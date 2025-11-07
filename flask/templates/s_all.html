@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<section class="page-header">
+	<h1 class="page-title">
+		<i class="fas fa-tachometer-alt"></i>
+		Dashboard - Übersicht
+	</h1>
+	<div class="page-actions">
+		{% if session.name %}
+			<span class="user-badge">
+				<i class="fas fa-user"></i>
+				Angemeldet als {{ session.name }}
+			</span>
+		{% endif %}
+	</div>
+</section>
+
+<section class="features-section">
+	<div class="features-grid">
+		<a class="feature-card" href="/s_overview">
+			<div class="feature-icon">
+				<i class="fas fa-search"></i>
+			</div>
+			<h3 class="feature-title">Overview</h3>
+			<p class="feature-description">Fälle suchen, ansehen und bearbeiten.</p>
+		</a>
+		<a class="feature-card" href="/s_app">
+			<div class="feature-icon">
+				<i class="fas fa-plus-circle"></i>
+			</div>
+			<h3 class="feature-title">Neue Fälle</h3>
+			<p class="feature-description">Neuen Fall anlegen und Bild hochladen.</p>
+		</a>
+		<a class="feature-card" href="/s_reports">
+			<div class="feature-icon">
+				<i class="fas fa-chart-bar"></i>
+			</div>
+			<h3 class="feature-title">Berichte</h3>
+			<p class="feature-description">Zeitraum wählen und Daten exportieren.</p>
+		</a>
+		<a class="feature-card" href="/register">
+			<div class="feature-icon">
+				<i class="fas fa-user-plus"></i>
+			</div>
+			<h3 class="feature-title">Benutzer</h3>
+			<p class="feature-description">Neues Konto erstellen.</p>
+		</a>
+	</div>
+</section>
+
+{% endblock %}
