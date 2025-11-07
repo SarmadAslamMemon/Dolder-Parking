@@ -1,5 +1,7 @@
 from app import db
 from flask_login import UserMixin
+from sqlalchemy import ForeignKey
+from sqlalchemy.orm import relationship
 import enum
 
 # tabel Users (usermanagement)
@@ -44,4 +46,8 @@ class HtmlTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     html_content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime(), nullable=False)
+    user_id = db.Column(db.Integer, ForeignKey('users.id'), nullable=True)
+    
+    # Relationship to access the user who created this template
+    user = relationship("Users", backref="html_templates")
                             
