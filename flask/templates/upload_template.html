@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Vorlage hochladen{% endblock %}
+{% block content %}
+
+<section class="page-header">
+	<h1 class="page-title">
+		<i class="fas fa-file-upload"></i>
+		Vorlage hochladen
+	</h1>
+	<div class="page-actions">
+		{% if session.name %}
+			<span class="user-badge">
+				<i class="fas fa-user"></i>
+				Angemeldet als {{ session.name }}
+			</span>
+		{% endif %}
+		<form action="/s_all" method="get" class="inline">
+			<button type="submit" class="btn btn-outline">
+				<i class="fas fa-arrow-left"></i>
+				Zurück
+			</button>
+		</form>
+	</div>
+</section>
+
+<section class="card form-card">
+	<div class="card-header">
+		<h3 class="card-title">
+			<i class="fas fa-file-code"></i>
+			HTML-Datei hochladen
+		</h3>
+	</div>
+	<form action="#" method="post" enctype="multipart/form-data" class="form">
+		<div class="form-section">
+			<div class="form-field">
+				<label class="label" for="html_file">
+					<i class="fas fa-file"></i>
+					HTML-Datei auswählen
+				</label>
+				<input class="input" type="file" name="html_file" id="html_file" accept=".html" required />
+			</div>
+		</div>
+		
+		<div class="form-footer">
+			<button type="submit" class="save-btn btn-primary">
+				<i class="fas fa-upload"></i>
+				Hochladen
+			</button>
+		</div>
+	</form>
+</section>
+
+{% if success_message %}
+<div class="notice success">
+	<i class="fas fa-check-circle"></i>
+	<span>{{ success_message }}</span>
+	{% if page_id %}
+	<a class="btn btn-outline" href="/page/{{ page_id }}">
+		<i class="fas fa-eye"></i>
+		Ansehen unter /page/{{ page_id }}
+	</a>
+	{% endif %}
+</div>
+{% endif %}
+
+{% if error_message %}
+<div class="notice danger">
+	<i class="fas fa-exclamation-triangle"></i>
+	{{ error_message }}
+</div>
+{% endif %}
+
+{% if uploaded_files %}
+<section class="card form-card">
+	<div class="card-header">
+		<h3 class="card-title">
+			<i class="fas fa-list"></i>
+			Hochgeladene Dateien
+		</h3>
+	</div>
+	<div class="uploaded-files-list">
+		{% for file in uploaded_files %}
+		<div class="uploaded-file-item">
+			<div class="file-info">
+				<i class="fas fa-file-code"></i>
+				<span class="file-link">
+					<a href="/page/{{ file.id }}">Seite {{ file.id }}</a>
+				</span>
+				<span class="file-date">
+					<i class="fas fa-calendar"></i>
+					{{ file.created_at.strftime('%Y-%m-%d %H:%M') }}
+				</span>
+			</div>
+			<div class="file-actions">
+				<a href="/page/{{ file.id }}" class="btn btn-outline btn-sm">
+					<i class="fas fa-eye"></i>
+					Ansehen
+				</a>
+				<form action="/delete_template/{{ file.id }}" method="post" class="inline-form">
+					<button type="submit" class="btn btn-outline btn-sm btn-danger" onclick="return confirm('Möchten Sie diese Datei wirklich löschen?');">
+						<i class="fas fa-trash"></i>
+						Löschen
+					</button>
+				</form>
+			</div>
+		</div>
+		{% endfor %}
+	</div>
+</section>
+{% endif %}
+
+{% endblock %}
+

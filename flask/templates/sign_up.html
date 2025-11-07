@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Registrierung{% endblock %}
+
+{% block content %}
+
+<section class="auth-section">
+	<div class="auth-card">
+		<div class="auth-header">
+			<div class="auth-icon">
+				<i class="fas fa-user-plus"></i>
+			</div>
+			<h1 class="auth-title">Neues Konto erstellen</h1>
+			<p class="auth-subtitle">Registrieren Sie sich für Dolder Parking</p>
+		</div>
+		
+		<form action="#" method="post" class="auth-form">
+			<div class="form-group">
+				<label class="form-label" for="username">
+					<i class="fas fa-user"></i>
+					Benutzername
+				</label>
+				<input class="form-input" type="text" name="username" id="username" placeholder="Benutzername eingeben" required />
+			</div>
+			
+			<div class="form-group">
+				<label class="form-label" for="password">
+					<i class="fas fa-lock"></i>
+					Passwort
+				</label>
+				<input class="form-input" type="password" name="password" id="password" placeholder="Passwort eingeben" required />
+			</div>
+			
+			<div class="form-group">
+				<label class="form-label" for="permissions">
+					<i class="fas fa-shield-alt"></i>
+					Berechtigung
+				</label>
+				<select class="form-input" name="permission" id="permissions" required>
+					<option value="">Berechtigung auswählen</option>
+					<option value="all">Alle Berechtigungen</option>
+					<option value="app">App-Berechtigung</option>
+					<option value="admin">PowerUser</option>
+					<option value="none">Keine Berechtigung</option>
+				</select>
+			</div>
+			
+			<button type="submit" class="auth-submit-btn">
+				<i class="fas fa-user-plus"></i>
+				<span>Konto erstellen</span>
+			</button>
+		</form>
+		
+		<div class="auth-footer">
+			<p class="auth-help">
+				<i class="fas fa-info-circle"></i>
+				Bereits ein Konto? 
+				<a href="/login" style="color: #6ec1ff; text-decoration: none;">Hier anmelden</a>
+			</p>
+		</div>
+	</div>
+</section>
+
+{% endblock %}

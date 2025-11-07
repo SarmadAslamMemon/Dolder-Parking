@@ -1,0 +1,74 @@
+networks:
+  internal:
+    external: false
+
+services:
+  nginx-proxy:
+    container_name: dolder_park-proxy
+    build: nginx
+    restart: always
+    volumes:
+      - ./nginx/default.conf:/tmp/default.conf
+    environment:
+      - TZ=Europe/Zurich
+      - FLASK_SERVER_ADDR=flask-app:8000
+    networks:
+      - internal
+    ports:
+      - "6851:80"
+    depends_on:
+      - flask-app
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail localhost:80/health-check || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+    command: ["/app/start.sh"]
+
+  db:
+    image: mariadb
+    container_name: dolder_park-db
+    restart: always
+    environment:
+      - TZ=Europe/Zurich
+      - MARIADB_ROOT_PASSWORD=m5xJZaPGchgt2jclX652oYf6zI0pDwS
+      - MARIADB_USER=parkdb
+      - MARIADB_PASSWORD=c8gKsU6AoxJN9Kp8xHBs
+      - MARIADB_DATABASE=dolderpark
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    networks:
+      - internal
+    ports:
+      - "3306:3306"
+
+  flask-app:
+    container_name: dolder_park-flask
+    build: flask
+    restart: always
+    volumes:
+        - ./data/cars:/app/static/carpics
+    environment:
+        PYTHONUNBUFFERED: 1
+        TZ: Europe/Zurich
+        DB_USER: "parkdb"
+        DB_PASS: "c8gKsU6AoxJN9Kp8xHBs"
+        DB_URL: "db"
+        DB_PORT: "3306"
+        DB_NAME: "dolderpark"
+        M_MAHN1: "76.20"
+        M_MAHN2: "91.20"
+        M_MAHN3: "118.00"
+        M_MAHN4: "133.00"
+    networks:
+      - internal
+    #ports:
+    #  - '8000:8000'
+    depends_on:
+      - db
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail localhost:8000/flask-health-check || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 4
+    command: gunicorn -w 3 -t 60 -b 0.0.0.0:8000 app:app

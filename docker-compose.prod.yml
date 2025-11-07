@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  flask-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: dolder-parking-app
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Europe/Zurich
+      - DB_USER=parkdb
+      - DB_PASS=c8gKsU6AoxJN9Kp8xHBs
+      - DB_URL=db
+      - DB_PORT=3306
+      - DB_NAME=dolderpark
+      - M_MAHN1=76.20
+      - M_MAHN2=91.20
+      - M_MAHN3=118.00
+      - M_MAHN4=133.00
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - app_data:/app/data
+
+  db:
+    image: mariadb:10.11
+    container_name: dolder-parking-db
+    restart: unless-stopped
+    environment:
+      - MARIADB_ROOT_PASSWORD=m5xJZaPGchgt2jclX652oYf6zI0pDwS
+      - MARIADB_USER=parkdb
+      - MARIADB_PASSWORD=c8gKsU6AoxJN9Kp8xHBs
+      - MARIADB_DATABASE=dolderpark
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nginx:
+    image: nginx:alpine
+    container_name: dolder-parking-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - flask-app
+
+volumes:
+  app_data:
+  db_data:

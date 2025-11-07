@@ -1,0 +1,4 @@
+# do not commit pictures"
+flask/static/carpics/*.png
+flask/static/excel/*.xlsx
+envlin/*

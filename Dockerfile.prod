@@ -1,0 +1,38 @@
+# Production Dockerfile for Docker Hub
+FROM python:3.11-slim-bookworm
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    jq \
+    build-essential \
+    pkg-config \
+    default-libmysqlclient-dev \
+    libffi-dev \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libgdk-pixbuf2.0-dev \
+    shared-mime-info \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY flask/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY flask/ /app/
+COPY nginx/ /app/nginx/
+
+# Create directories for data
+RUN mkdir -p /app/data/cars /app/data/mysql
+
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/flask-health-check || exit 1
+
+# Use gunicorn for production
+CMD ["gunicorn", "-w", "3", "-t", "60", "-b", "0.0.0.0:8000", "app:app"]

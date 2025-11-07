@@ -1,0 +1,9 @@
+services:
+  flask-app:
+    volumes:
+      - ./flask:/app
+      - ./data/cars:/app/static/carpics
+    environment:
+      FLASK_DEBUG: "1"
+    command: gunicorn --reload -w 1 -t 60 -b 0.0.0.0:8000 app:app
+
