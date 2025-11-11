@@ -33,6 +33,9 @@
 					   placeholder="Bussennummer" 
 					   autocomplete="off"
 					   inputmode="numeric">
+				<small style="color: #a0aec0; margin-top: 0.25rem; display: block; font-size: 0.85rem;">
+					<i class="fas fa-info-circle"></i> Wird automatisch erkannt, wenn ein Bild hochgeladen wird
+				</small>
 			</div>
 			<div class="search-actions">
 				<button type="submit" value="gotonr" name="gotonr" class="btn btn-primary" id="gotoButton">
@@ -43,20 +46,18 @@
 		</div>
 	</form>
 
-	{% if nextnum is not none and nextnum != '' %}
+	{% if nextnum is not none and nextnum != '' and request.method == 'POST' %}
 		{% if not doesExist %}
-			<div class="notice success" aria-live="polite">
+			<div class="notice success" aria-live="polite" id="numberStatus">
 				<i class="fas fa-check-circle"></i>
 				<span>Nummer {{ nextnum }} ist frei.</span>
 			</div>
+		{% else %}
+			<div class="notice warning" aria-live="polite" id="numberStatus">
+				<i class="fas fa-exclamation-triangle"></i>
+				<span>Achtung: Nummer {{ nextnum }} existiert bereits. Sie können trotzdem ein neues Foto hinzufügen.</span>
+			</div>
 		{% endif %}
-	{% endif %}
-
-	{% if doesExist and nextnum and request.method == 'POST' %}
-		<div id="errorMessage" class="notice danger">
-			<i class="fas fa-exclamation-triangle"></i>
-			<span>Achtung: Nummer {{ nextnum }} existiert bereits. Sie können trotzdem ein neues Foto hinzufügen.</span>
-		</div>
 	{% endif %}
 	{% if wrongFile and request.method == 'POST' %}
 		<div id="fileError" class="notice danger">
@@ -64,11 +65,25 @@
 			<span>Kein Bild ausgewählt oder falsches Format</span>
 		</div>
 	{% endif %}
+	{% if alreadySaved and request.method == 'POST' %}
+		<div id="saveError" class="notice danger" style="animation: fadeIn 0.3s; cursor: pointer;" onclick="this.remove()" title="Klicken zum Schließen">
+			<i class="fas fa-exclamation-circle"></i>
+			<span>{{ saveError|default('Dieser Fall wurde bereits gespeichert!') }}</span>
+			<i class="fas fa-times" style="margin-left: auto; opacity: 0.7;"></i>
+		</div>
+	{% endif %}
+	{% if saveError and not alreadySaved and request.method == 'POST' %}
+		<div id="saveError" class="notice danger" style="animation: fadeIn 0.3s; cursor: pointer;" onclick="this.remove()" title="Klicken zum Schließen">
+			<i class="fas fa-exclamation-circle"></i>
+			<span>{{ saveError }}</span>
+			<i class="fas fa-times" style="margin-left: auto; opacity: 0.7;"></i>
+		</div>
+	{% endif %}
 </section>
 
 <section class="card case-info-card">
-	<div class="image-frame">
-		{% if htmlpath %}
+	<div class="image-frame" id="imageFrame">
+		{% if htmlpath and 'no-image-available.jpg' not in htmlpath %}
 			<img src="{{ htmlpath }}" alt="Vorschau" class="case-thumbnail" id="imagePreview">
 		{% else %}
 			<div id="noImage" style="text-align: center; padding: 2rem;">
@@ -76,6 +91,13 @@
 				<p style="color: #cfd7df; margin-top: 0.5rem;">Kein Bild ausgewählt</p>
 			</div>
 		{% endif %}
+		<!-- Upload overlay loader -->
+		<div id="uploadOverlay" class="upload-overlay" style="display: none;">
+			<div class="upload-loader">
+				<i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #4299e1;"></i>
+				<p style="margin-top: 1rem; color: #90cdf4;">Bild wird hochgeladen...</p>
+			</div>
+		</div>
 	</div>
 
 	<form action="#" method="post" enctype="multipart/form-data" id="cameraForm" class="hidden">
@@ -86,7 +108,6 @@
 		<input type="file" id="galleryInput" name="file" accept="image/*">
 	</form>
 	
-	{% if not doesExist %}
 	<div class="form-footer">
 		<div class="action-buttons" style="flex-direction: column; gap: 1rem;">
 			<div style="display: flex; gap: 1rem; width: 100%;">
@@ -99,27 +120,26 @@
 					<i class="fas fa-images"></i>
 					Galerie
 				</button>
+				<small style="color: #a0aec0; text-align: center; width: 100%; font-size: 0.8rem; margin-top: 0.25rem;">
+					<i class="fas fa-info-circle"></i> Max. Dateigröße: 1MB
+				</small>
 			</div>
 			
-			{% if htmlpath %}
-			<div style="display: flex; gap: 1rem; width: 100%;">
-				<form action="#" method="post" style="flex: 1;">
-					<button type="submit" value="doneall" name="doneall" class="btn btn-primary full">
+			<!-- Save/Delete buttons - show when image is uploaded, regardless of case existence -->
+			<div id="saveDeleteButtonsContainer" style="display: none;">
+				<div class="save-delete-buttons" style="display: flex; gap: 1rem; width: 100%;">
+					<button type="button" onclick="saveCase(event)" id="saveButton" class="btn btn-primary full">
 						<i class="fas fa-save"></i>
 						Speichern
 					</button>
-				</form>
-				<form action="#" method="post" style="flex: 1;">
-					<button type="submit" value="delall" name="delall" class="btn btn-outline full">
+					<button type="button" onclick="deleteImage(event)" class="btn btn-outline full">
 						<i class="fas fa-trash"></i>
 						Löschen
 					</button>
-				</form>
+				</div>
 			</div>
-			{% endif %}
 		</div>
 	</div>
-	{% endif %}
 </section>
 
 <style>
@@ -239,6 +259,7 @@
 		margin-bottom: 0.5rem;
 		max-height: 200px;
 		border-radius: 8px;
+		position: relative;
 	}
 	
 	.image-frame img.case-thumbnail {
@@ -291,6 +312,101 @@
 	}
 }
 
+/* Animation for temporary messages */
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes fadeOut {
+	from {
+		opacity: 1;
+		transform: translateY(0);
+	}
+	to {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+}
+
+/* Notice styles */
+.notice {
+	padding: 0.75rem 1rem;
+	margin: 0.5rem 0;
+	border-radius: 6px;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: 0.9rem;
+}
+
+.notice.info {
+	background: #2d3748;
+	border-left: 4px solid #4299e1;
+	color: #90cdf4;
+}
+
+.notice.danger {
+	background: #2d3748;
+	border-left: 4px solid #f56565;
+	color: #fc8181;
+}
+
+.notice.success {
+	background: #2d3748;
+	border-left: 4px solid #48bb78;
+	color: #68d391;
+}
+
+/* Spinner animation */
+.fa-spinner {
+	animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+/* Upload overlay loader */
+.upload-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(26, 32, 44, 0.9);
+	border-radius: 8px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 10;
+}
+
+.image-frame {
+	position: relative;
+}
+
+.upload-loader {
+	text-align: center;
+	color: #90cdf4;
+}
+
+.upload-loader p {
+	font-size: 0.9rem;
+	margin-top: 0.5rem;
+}
+
 /* Smaller mobile devices */
 @media (max-width: 480px) {
 	html, body {
@@ -322,6 +438,7 @@
 	
 	.image-frame {
 		max-height: 150px;
+		position: relative;
 	}
 	
 	.image-frame img.case-thumbnail {
@@ -342,20 +459,79 @@ let imageUploaded = false;
 // Track if form is being submitted (to avoid popup on form submission)
 let formSubmitting = false;
 
+// Restore detected plate number from sessionStorage on page load (before clearing)
+(function() {
+    const savedPlateNumber = sessionStorage.getItem('detectedPlateNumber');
+    if (savedPlateNumber && savedPlateNumber !== 'null' && savedPlateNumber !== 'NO VALID GERMAN PLATE DETECTED') {
+        window.detectedPlateNumber = savedPlateNumber;
+        console.log('Restored plate number from sessionStorage:', savedPlateNumber);
+    }
+})();
+
 // Clear form and errors on page load
 window.addEventListener('DOMContentLoaded', function() {
-    // Check if page was refreshed with an uploaded image
-    const wasRefreshed = sessionStorage.getItem('imageWasUploaded');
-    const imagePreview = document.getElementById('imagePreview');
+    // Clear ALL error messages and notices on page load/reload
+    const errorMessage = document.getElementById('errorMessage');
+    const fileError = document.getElementById('fileError');
+    const saveError = document.getElementById('saveError');
+    const successNotice = document.querySelector('.notice.success');
     
-    if (wasRefreshed === 'true' && imagePreview) {
-        // User refreshed the page after uploading - clear the image
+    // Remove all error messages immediately
+    if (errorMessage) errorMessage.remove();
+    if (fileError) fileError.remove();
+    if (saveError) saveError.remove();
+    if (successNotice) successNotice.remove();
+    
+    // Always clear input field on page load/reload
+    const numberInput = document.getElementById('next_bussennr');
+    if (numberInput) {
+        numberInput.value = '';
+    }
+    
+    // Reset selected file
+    selectedFile = null;
+    
+    // Always clear image on page load unless it's a valid case image
+    const imagePreview = document.getElementById('imagePreview');
+    const noImage = document.getElementById('noImage');
+    const imageFrame = document.getElementById('imageFrame');
+    
+    // Check if we should show image or clear it
+    if (imagePreview) {
+        const imageSrc = imagePreview.src;
+        // Always clear if it's placeholder or if we're on a fresh page (no active case)
+        if (imageSrc.includes('no-image-available.jpg') || !imageSrc.includes('carpics')) {
+            clearUploadedImage();
+            sessionStorage.removeItem('imageWasUploaded');
+            imageUploaded = false;
+            
+            // Hide save/delete buttons
+            const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+            if (saveDeleteContainer) {
+                saveDeleteContainer.style.display = 'none';
+            }
+        } else {
+            // Image exists from server for active case, mark as uploaded
+            imageUploaded = true;
+            sessionStorage.setItem('imageWasUploaded', 'true');
+            
+            // Show save/delete buttons
+            const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+            if (saveDeleteContainer) {
+                saveDeleteContainer.style.display = 'block';
+            }
+        }
+    } else {
+        // No image preview element, ensure it's cleared
         clearUploadedImage();
         sessionStorage.removeItem('imageWasUploaded');
-    } else if (imagePreview) {
-        // Image exists, mark as uploaded
-        imageUploaded = true;
-        sessionStorage.setItem('imageWasUploaded', 'true');
+        imageUploaded = false;
+        
+        // Hide save/delete buttons
+        const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+        if (saveDeleteContainer) {
+            saveDeleteContainer.style.display = 'none';
+        }
     }
     
     // Clear URL parameters to prevent form resubmission on refresh
@@ -365,6 +541,9 @@ window.addEventListener('DOMContentLoaded', function() {
     
     // Reset formSubmitting flag after page load
     formSubmitting = false;
+    
+    // Don't remove the saveDeleteButtonsContainer - it's part of the template
+    // Only remove dynamically added buttons if they're duplicates
 });
 
 // Show alert when user manually tries to refresh/leave page with uploaded image
@@ -410,40 +589,810 @@ function clearUploadedImage() {
     sessionStorage.removeItem('imageWasUploaded');
 }
 
-// Update image preview when a file is selected
+// Store selected file for preview
+let selectedFile = null;
+
+// Update image preview when a file is selected (without auto-submit)
 function updateImagePreview(input) {
+    console.log('updateImagePreview called', input);
     const preview = document.getElementById('imagePreview');
     const noImage = document.getElementById('noImage');
     
     if (input.files && input.files[0]) {
+        console.log('File selected:', input.files[0].name, 'Size:', input.files[0].size);
+        // Check file size (max 1MB)
+        const file = input.files[0];
+        const maxSize = 1 * 1024 * 1024; // 1MB in bytes
+        
+        if (file.size > maxSize) {
+            alert('Das Bild ist zu groß. Bitte wählen Sie ein Bild kleiner als 1MB.');
+            input.value = ''; // Clear the input
+            return;
+        }
+        
+        // Store the selected file
+        selectedFile = file;
+        console.log('selectedFile stored:', selectedFile.name);
         const reader = new FileReader();
         
         reader.onload = function(e) {
+            console.log('FileReader onload triggered');
             const container = document.querySelector('.image-frame');
             if (!preview) {
+                // Create new image element
                 const img = document.createElement('img');
                 img.id = 'imagePreview';
                 img.className = 'case-thumbnail';
                 img.src = e.target.result;
+                img.alt = 'Vorschau';
                 container.innerHTML = '';
                 container.appendChild(img);
             } else {
+                // Update existing image
                 preview.src = e.target.result;
+                if (noImage) noImage.style.display = 'none';
             }
             
-            // Mark that image has been uploaded
-            imageUploaded = true;
-            sessionStorage.setItem('imageWasUploaded', 'true');
+            // Show save/delete buttons when image is selected (always use same template)
+            const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+            if (saveDeleteContainer) {
+                saveDeleteContainer.style.display = 'block';
+            }
             
-            // Mark that we're submitting a form (to avoid popup)
-            formSubmitting = true;
+            // Auto-extract plate number and fill input field
+            console.log('Calling autoExtractPlateNumber from updateImagePreview');
+            // Use setTimeout to ensure DOM is ready
+            setTimeout(() => {
+                autoExtractPlateNumber();
+            }, 100);
             
-            // Auto-submit the form after image selection
-            input.form.submit();
+            // Mark that image has been selected (but NOT uploaded yet)
+            // imageUploaded should remain false until uploadImage() succeeds
+            imageUploaded = false;
+            console.log('Image selected, imageUploaded set to false (will be true after upload)');
         }
+        
+        reader.onerror = function() {
+            console.error('Error reading file');
+            alert('Fehler beim Lesen der Datei');
+        };
         
         reader.readAsDataURL(input.files[0]);
     }
+}
+
+// Auto-extract plate number when image is selected
+async function autoExtractPlateNumber() {
+    console.log('autoExtractPlateNumber called');
+    
+    if (!selectedFile) {
+        console.log('No selectedFile');
+        return;
+    }
+    
+    const numberInput = document.getElementById('next_bussennr');
+    if (!numberInput) {
+        console.log('No numberInput found');
+        return;
+    }
+    
+    // Only extract if input field is empty
+    if (numberInput.value && numberInput.value.trim() !== '') {
+        console.log('Input field already has value, skipping extraction');
+        return; // Don't overwrite existing value
+    }
+    
+    console.log('Starting plate extraction for file:', selectedFile.name, 'Size:', selectedFile.size);
+    
+    // Show loading indicator
+    const originalPlaceholder = numberInput.placeholder;
+    const loadingMessage = showLoadingMessage('Kennzeichen wird erkannt...');
+    
+    numberInput.placeholder = 'Kennzeichen wird erkannt...';
+    numberInput.disabled = true;
+    
+    try {
+        const formData = new FormData();
+        formData.append('image', selectedFile);
+        
+        console.log('Sending request to /extract-plate');
+        const response = await fetch('/extract-plate', {
+            method: 'POST',
+            body: formData
+        });
+        
+        console.log('Response status:', response.status, response.statusText);
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Response not OK:', errorData);
+            throw new Error(errorData.error || 'Fehler beim Erkennen des Kennzeichens');
+        }
+        
+        const data = await response.json();
+        console.log('Response data:', data);
+        const plateNumber = data.plate_number || '';
+        
+        // Store the full plate number for saving to database
+        window.detectedPlateNumber = plateNumber;
+        // Also store in sessionStorage as backup
+        if (plateNumber && plateNumber !== 'NO VALID GERMAN PLATE DETECTED') {
+            sessionStorage.setItem('detectedPlateNumber', plateNumber);
+            console.log('Stored plate number in sessionStorage:', plateNumber);
+        }
+        
+        if (plateNumber && plateNumber !== 'NO VALID GERMAN PLATE DETECTED') {
+            // Extract just the number part from plate (e.g., "B-MA 1234" -> "1234")
+            const numberMatch = plateNumber.match(/(\d+)/);
+            if (numberMatch) {
+                numberInput.value = numberMatch[1];
+                console.log('Filled number:', numberMatch[1]);
+                
+                // Trigger "Gehe zu" action to check if number is available
+                // This will update the status message and set session
+                checkNumberStatus(numberMatch[1]);
+            } else {
+                // If no number found, use the full plate
+                numberInput.value = plateNumber.replace(/[^0-9]/g, '');
+                console.log('Filled number (extracted):', numberInput.value);
+                if (numberInput.value) {
+                    checkNumberStatus(numberInput.value);
+                }
+            }
+            
+            // Show success message briefly
+            hideLoadingMessage(loadingMessage);
+            showTemporaryMessage('Kennzeichen erkannt: ' + plateNumber, 'success');
+        } else {
+            // No plate detected - show info message
+            console.log('No valid plate detected');
+            hideLoadingMessage(loadingMessage);
+            showTemporaryMessage('Kein gültiges Kennzeichen erkannt. Bitte manuell eingeben.', 'info');
+        }
+    } catch (error) {
+        console.error('Error extracting plate:', error);
+        hideLoadingMessage(loadingMessage);
+        showTemporaryMessage('Fehler beim Erkennen: ' + (error.message || 'Unbekannter Fehler'), 'danger');
+    } finally {
+        numberInput.placeholder = originalPlaceholder;
+        numberInput.disabled = false;
+    }
+}
+
+// Show loading message
+function showLoadingMessage(message) {
+    const formCard = document.querySelector('.form-card');
+    if (!formCard) return null;
+    
+    // Remove existing loading message
+    const existingMsg = document.getElementById('loadingPlateMessage');
+    if (existingMsg) existingMsg.remove();
+    
+    const msgDiv = document.createElement('div');
+    msgDiv.id = 'loadingPlateMessage';
+    msgDiv.className = 'notice info';
+    msgDiv.style.cssText = 'margin-top: 0.5rem; animation: fadeIn 0.3s;';
+    msgDiv.innerHTML = `
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>${message}</span>
+    `;
+    
+    formCard.appendChild(msgDiv);
+    return msgDiv;
+}
+
+// Hide loading message
+function hideLoadingMessage(loadingElement) {
+    if (loadingElement && loadingElement.parentNode) {
+        loadingElement.style.animation = 'fadeOut 0.3s';
+        setTimeout(() => {
+            if (loadingElement.parentNode) {
+                loadingElement.remove();
+            }
+        }, 300);
+    }
+}
+
+// Show temporary message
+function showTemporaryMessage(message, type) {
+    const formCard = document.querySelector('.form-card');
+    if (!formCard) return;
+    
+    // Remove existing temp message and loading message
+    const existingMsg = document.getElementById('tempPlateMessage');
+    if (existingMsg) existingMsg.remove();
+    const existingLoading = document.getElementById('loadingPlateMessage');
+    if (existingLoading) existingLoading.remove();
+    
+    // Choose icon based on type
+    let icon = 'fa-check-circle';
+    if (type === 'danger') icon = 'fa-exclamation-triangle';
+    if (type === 'info') icon = 'fa-info-circle';
+    if (type === 'success') icon = 'fa-check-circle';
+    
+    const msgDiv = document.createElement('div');
+    msgDiv.id = 'tempPlateMessage';
+    msgDiv.className = `notice ${type}`;
+    msgDiv.style.cssText = 'margin-top: 0.5rem; animation: fadeIn 0.3s;';
+    msgDiv.innerHTML = `<i class="fas ${icon}"></i> <span>${message}</span>`;
+    
+    formCard.appendChild(msgDiv);
+    
+    // Remove after 4 seconds (longer for errors)
+    const timeout = type === 'danger' ? 5000 : 3000;
+    setTimeout(() => {
+        if (msgDiv.parentNode) {
+            msgDiv.style.animation = 'fadeOut 0.3s';
+            setTimeout(() => msgDiv.remove(), 300);
+        }
+    }, timeout);
+}
+
+// Check number status (if it exists in database)
+async function checkNumberStatus(number) {
+    if (!number) return;
+    
+    try {
+        const formData = new FormData();
+        formData.append('gotonr', 'gotonr');
+        formData.append('next_bussennr', number);
+        
+        const response = await fetch(window.location.pathname, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        
+        if (response.ok) {
+            // Get HTML response and extract status
+            const html = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const statusDiv = doc.querySelector('#numberStatus');
+            
+            if (statusDiv) {
+                // Remove existing status
+                const existingStatus = document.getElementById('numberStatus');
+                if (existingStatus) existingStatus.remove();
+                
+                // Add new status
+                const formCard = document.querySelector('.form-card');
+                if (formCard) {
+                    formCard.appendChild(statusDiv);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error checking number status:', error);
+    }
+}
+
+// This function is no longer needed - we always use Save/Delete buttons
+// Removed showActionButtons() - always use saveDeleteButtonsContainer instead
+
+// Upload the selected image without page refresh
+async function uploadImage() {
+    if (!selectedFile) {
+        alert('Bitte wählen Sie zuerst ein Bild aus');
+        return false;
+    }
+    
+    // Show loading indicator on button
+    const uploadButton = document.getElementById('uploadButton') || (event ? event.target.closest('button') : null);
+    const originalButtonText = uploadButton ? uploadButton.innerHTML : '';
+    if (uploadButton) {
+        uploadButton.disabled = true;
+        uploadButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird hochgeladen...';
+    }
+    
+    // Show overlay loader on image
+    const imageFrame = document.getElementById('imageFrame');
+    const uploadOverlay = document.getElementById('uploadOverlay');
+    if (imageFrame && uploadOverlay) {
+        uploadOverlay.style.display = 'flex';
+    }
+    
+    // Show loading message
+    const loadingMsg = showLoadingMessage('Bild wird hochgeladen und verarbeitet...');
+    
+    // Disable retake button
+    const retakeButton = document.querySelector('button[onclick="retakePhoto()"]');
+    if (retakeButton) {
+        retakeButton.disabled = true;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        
+        console.log('Uploading image:', selectedFile.name);
+        
+        const response = await fetch(window.location.pathname, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        
+        console.log('Upload response status:', response.status);
+        
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            // JSON response
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                // Update image preview with the uploaded image
+                const currentImageFrame = document.querySelector('.image-frame');
+                if (currentImageFrame && data.image_path) {
+                    const existingPreview = document.getElementById('imagePreview');
+                    if (existingPreview) {
+                        existingPreview.src = '/' + data.image_path;
+                    } else {
+                        // Create new image element
+                        const noImage = document.getElementById('noImage');
+                        if (noImage) noImage.remove();
+                        
+                        const img = document.createElement('img');
+                        img.id = 'imagePreview';
+                        img.className = 'case-thumbnail';
+                        img.src = '/' + data.image_path;
+                        img.alt = 'Vorschau';
+                        currentImageFrame.appendChild(img);
+                    }
+                }
+                
+                // ALWAYS show save/delete buttons after successful upload
+                const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+                console.log('Upload successful - saveDeleteButtonsContainer found:', saveDeleteContainer);
+                if (saveDeleteContainer) {
+                    // Force show using multiple methods
+                    saveDeleteContainer.style.display = 'block';
+                    saveDeleteContainer.style.visibility = 'visible';
+                    saveDeleteContainer.removeAttribute('hidden');
+                    console.log('Save/Delete buttons container FORCE displayed');
+                    
+                    // Also check the inner div
+                    const innerButtons = saveDeleteContainer.querySelector('.save-delete-buttons');
+                    if (innerButtons) {
+                        innerButtons.style.display = 'flex';
+                        console.log('Inner save-delete-buttons div also shown');
+                    }
+                } else {
+                    console.error('CRITICAL: saveDeleteButtonsContainer not found in DOM!');
+                    // Try to create it if it doesn't exist
+                    const actionButtons = document.querySelector('.action-buttons');
+                    if (actionButtons) {
+                        const newContainer = document.createElement('div');
+                        newContainer.id = 'saveDeleteButtonsContainer';
+                        newContainer.innerHTML = `
+                            <div class="save-delete-buttons" style="display: flex; gap: 1rem; width: 100%;">
+                                <button type="button" onclick="saveCase(event)" id="saveButton" class="btn btn-primary full">
+                                    <i class="fas fa-save"></i>
+                                    Speichern
+                                </button>
+                                <button type="button" onclick="deleteImage(event)" class="btn btn-outline full">
+                                    <i class="fas fa-trash"></i>
+                                    Löschen
+                                </button>
+                            </div>
+                        `;
+                        actionButtons.appendChild(newContainer);
+                        console.log('Created saveDeleteButtonsContainer dynamically');
+                    }
+                }
+                
+                // If plate number was detected before upload, preserve it
+                if (window.detectedPlateNumber && window.detectedPlateNumber !== 'NO VALID GERMAN PLATE DETECTED') {
+                    console.log('Preserving detected plate number after upload:', window.detectedPlateNumber);
+                    // Store in sessionStorage as backup
+                    sessionStorage.setItem('detectedPlateNumber', window.detectedPlateNumber);
+                }
+                
+                // If no plate number was detected yet, try to extract from uploaded image
+                if (!window.detectedPlateNumber || window.detectedPlateNumber === 'NO VALID GERMAN PLATE DETECTED') {
+                    console.log('No plate number detected yet, attempting extraction from uploaded image...');
+                    // Try to extract from the uploaded image URL
+                    if (data.image_path) {
+                        // Re-run OCR on the uploaded image
+                        setTimeout(() => {
+                            autoExtractPlateNumber();
+                        }, 500);
+                    }
+                }
+                
+                // Also check number status if input has value
+                const numberInput = document.getElementById('next_bussennr');
+                if (numberInput && numberInput.value) {
+                    checkNumberStatus(numberInput.value);
+                }
+                
+                // Hide overlay
+                if (uploadOverlay) {
+                    uploadOverlay.style.display = 'none';
+                }
+                
+                hideLoadingMessage(loadingMsg);
+                showTemporaryMessage(data.message || 'Bild erfolgreich hochgeladen!', 'success');
+                
+                // Mark as uploaded
+                imageUploaded = true;
+                sessionStorage.setItem('imageWasUploaded', 'true');
+                
+                // Double-check buttons are visible after a short delay
+                setTimeout(() => {
+                    const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+                    if (saveDeleteContainer) {
+                        if (saveDeleteContainer.style.display !== 'block') {
+                            saveDeleteContainer.style.display = 'block';
+                            console.log('Force-showed Save/Delete buttons after upload (delayed check)');
+                        }
+                    } else {
+                        console.error('saveDeleteButtonsContainer still not found after upload!');
+                    }
+                }, 200);
+                
+                // Return true to indicate successful upload
+                return true;
+            } else {
+                // Error response
+                showTemporaryMessage(data.error || 'Fehler beim Hochladen', 'danger');
+                return false;
+            }
+        } else {
+            // HTML response (fallback)
+            const html = await response.text();
+            if (response.ok) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // Update image preview
+                const newImagePreview = doc.querySelector('#imagePreview');
+                const currentImageFrame = document.querySelector('.image-frame');
+                
+                if (newImagePreview && currentImageFrame) {
+                    const existingPreview = document.getElementById('imagePreview');
+                    if (existingPreview) {
+                        existingPreview.src = newImagePreview.src;
+                    } else {
+                        const noImage = document.getElementById('noImage');
+                        if (noImage) noImage.remove();
+                        
+                        const img = document.createElement('img');
+                        img.id = 'imagePreview';
+                        img.className = 'case-thumbnail';
+                        img.src = newImagePreview.src;
+                        img.alt = 'Vorschau';
+                        currentImageFrame.appendChild(img);
+                    }
+                }
+                
+                // Show save/delete buttons using the container (for HTML response too)
+                const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+                console.log('saveDeleteButtonsContainer found (HTML response):', saveDeleteContainer);
+                if (saveDeleteContainer) {
+                    saveDeleteContainer.style.display = 'block';
+                    console.log('Save/Delete buttons container displayed (HTML response)');
+                }
+                
+                showTemporaryMessage('Bild erfolgreich hochgeladen!', 'success');
+                
+                // Mark as uploaded
+                imageUploaded = true;
+                sessionStorage.setItem('imageWasUploaded', 'true');
+                
+                // Return true to indicate successful upload
+                return true;
+            } else {
+                showTemporaryMessage('Fehler beim Hochladen des Bildes', 'danger');
+                return false;
+            }
+        }
+    } catch (error) {
+        console.error('Error uploading image:', error);
+        showTemporaryMessage('Fehler beim Hochladen: ' + error.message, 'danger');
+        return false;
+    } finally {
+        // Hide overlay
+        if (uploadOverlay) {
+            uploadOverlay.style.display = 'none';
+        }
+        
+        // Re-enable buttons
+        if (uploadButton) {
+            uploadButton.disabled = false;
+            uploadButton.innerHTML = originalButtonText;
+        }
+        if (retakeButton) {
+            retakeButton.disabled = false;
+        }
+        
+        hideLoadingMessage(loadingMsg);
+        
+        // Ensure buttons are shown if image was successfully uploaded
+        if (imageUploaded) {
+            const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+            if (saveDeleteContainer) {
+                saveDeleteContainer.style.display = 'block';
+                console.log('Ensured Save/Delete buttons are visible after upload (finally block)');
+            }
+        }
+    }
+}
+
+
+// Retake photo - clear selection (same as delete image)
+function retakePhoto() {
+    selectedFile = null;
+    const cameraInput = document.getElementById('cameraInput');
+    const galleryInput = document.getElementById('galleryInput');
+    if (cameraInput) cameraInput.value = '';
+    if (galleryInput) galleryInput.value = '';
+    
+    clearUploadedImage();
+    
+    // Hide save/delete buttons
+    const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+    if (saveDeleteContainer) {
+        saveDeleteContainer.style.display = 'none';
+    }
+    
+    imageUploaded = false;
+    sessionStorage.removeItem('imageWasUploaded');
+    window.detectedPlateNumber = null;
+    sessionStorage.removeItem('detectedPlateNumber');
+}
+
+// Save case without page refresh
+async function saveCase(event) {
+    // Prevent any default behavior
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    
+    const saveButton = document.getElementById('saveButton') || (event ? event.target.closest('button') : null);
+    const numberInput = document.getElementById('next_bussennr');
+    
+    if (!saveButton) {
+        console.error('Save button not found');
+        return false;
+    }
+    
+    // If image is selected but not uploaded yet, upload it first
+    console.log('saveCase - Checking image state:');
+    console.log('  - selectedFile:', selectedFile ? selectedFile.name : 'null');
+    console.log('  - imageUploaded:', imageUploaded);
+    
+    if (selectedFile && !imageUploaded) {
+        console.log('Image selected but not uploaded, uploading first...');
+        const uploadSuccess = await uploadImage();
+        console.log('Upload result:', uploadSuccess);
+        if (!uploadSuccess) {
+            showTemporaryMessage('Bitte laden Sie zuerst das Bild hoch', 'danger');
+            return false;
+        }
+        // Wait a bit for upload to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('Image upload completed, proceeding with save...');
+    } else if (selectedFile && imageUploaded) {
+        console.log('Image already uploaded, proceeding with save...');
+    } else if (!selectedFile) {
+        console.log('No image selected, proceeding with save (text only)...');
+    }
+    
+    // Show confirmation popup
+    const numberValue = numberInput ? numberInput.value : '';
+    const confirmMessage = numberValue 
+        ? `Möchten Sie Fall ${numberValue} wirklich speichern?`
+        : 'Möchten Sie diesen Fall wirklich speichern?';
+    
+    if (!confirm(confirmMessage)) {
+        return false;
+    }
+    
+    // Disable button and show loading
+    const originalText = saveButton.innerHTML;
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird gespeichert...';
+    
+    try {
+        const formData = new FormData();
+        formData.append('doneall', 'doneall');
+        if (numberValue) {
+            formData.append('next_bussennr', numberValue);
+        }
+        
+        // Include the detected license plate number if available
+        // First check window variable, then sessionStorage as backup
+        let plateNumberToSave = window.detectedPlateNumber;
+        if (!plateNumberToSave || plateNumberToSave === 'NO VALID GERMAN PLATE DETECTED') {
+            plateNumberToSave = sessionStorage.getItem('detectedPlateNumber');
+        }
+        
+        if (plateNumberToSave && plateNumberToSave !== 'NO VALID GERMAN PLATE DETECTED' && plateNumberToSave !== 'null') {
+            formData.append('db_nummerschild', plateNumberToSave);
+            console.log('Including license plate:', plateNumberToSave);
+            console.log('Source: window.detectedPlateNumber =', window.detectedPlateNumber, ', sessionStorage =', sessionStorage.getItem('detectedPlateNumber'));
+        } else {
+            console.log('No license plate detected or available');
+            console.log('window.detectedPlateNumber:', window.detectedPlateNumber);
+            console.log('sessionStorage.detectedPlateNumber:', sessionStorage.getItem('detectedPlateNumber'));
+        }
+        
+        // Log all form data being sent
+        console.log('FormData contents:');
+        for (let pair of formData.entries()) {
+            console.log('  -', pair[0] + ':', pair[1]);
+        }
+        
+        console.log('Saving case with number:', numberValue);
+        
+        const response = await fetch(window.location.pathname, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        
+        console.log('Save response status:', response.status);
+        
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            const data = await response.json();
+            
+            console.log('Save response data:', data);
+            
+            if (response.ok && data.success) {
+                // Success - reset the form
+                const successMsg = data.message || `Fall ${data.case_number || ''} erfolgreich gespeichert!`;
+                console.log('✓ Case saved successfully:', data.case_number);
+                console.log('  - License Plate:', data.license_plate || 'N/A');
+                console.log('  - Image saved:', data.image_saved ? 'Yes' : 'No');
+                showTemporaryMessage(successMsg, 'success');
+                
+                // Clear input field
+                if (numberInput) {
+                    numberInput.value = '';
+                }
+                
+                // Clear detected plate number
+                window.detectedPlateNumber = null;
+                
+                // Clear image
+                clearUploadedImage();
+                selectedFile = null;
+                
+                // Hide save/delete buttons
+                const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+                if (saveDeleteContainer) {
+                    saveDeleteContainer.style.display = 'none';
+                }
+                
+                // Reset upload state
+                imageUploaded = false;
+                sessionStorage.removeItem('imageWasUploaded');
+                
+                // Clear file inputs
+                const cameraInput = document.getElementById('cameraInput');
+                const galleryInput = document.getElementById('galleryInput');
+                if (cameraInput) cameraInput.value = '';
+                if (galleryInput) galleryInput.value = '';
+            } else {
+                // Error response
+                showTemporaryMessage(data.error || 'Fehler beim Speichern', 'danger');
+            }
+        } else {
+            // HTML response (fallback)
+            const html = await response.text();
+            if (response.ok) {
+                showTemporaryMessage('Fall erfolgreich gespeichert!', 'success');
+                // Clear form
+                if (numberInput) numberInput.value = '';
+                clearUploadedImage();
+                selectedFile = null;
+                imageUploaded = false;
+            } else {
+                showTemporaryMessage('Fehler beim Speichern', 'danger');
+            }
+        }
+    } catch (error) {
+        console.error('Error saving case:', error);
+        showTemporaryMessage('Fehler beim Speichern: ' + error.message, 'danger');
+    } finally {
+        // Re-enable button
+        if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.innerHTML = originalText;
+        }
+    }
+    
+    return false; // Prevent any form submission
+}
+
+// Delete image without page refresh
+async function deleteImage(event) {
+    // Prevent any default behavior
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    
+    if (!confirm('Möchten Sie das Bild wirklich löschen?')) {
+        return false;
+    }
+    
+    const deleteButton = event ? event.target.closest('button') : document.querySelector('button[onclick*="deleteImage"]');
+    if (!deleteButton) {
+        console.error('Delete button not found');
+        return false;
+    }
+    
+    const originalText = deleteButton.innerHTML;
+    deleteButton.disabled = true;
+    deleteButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird gelöscht...';
+    
+    try {
+        const formData = new FormData();
+        formData.append('delall', 'delall');
+        
+        const response = await fetch(window.location.pathname, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        
+        if (response.ok) {
+            // Clear image
+            clearUploadedImage();
+            selectedFile = null;
+            
+            // Hide save/delete buttons
+            const saveDeleteDiv = document.querySelector('.save-delete-buttons');
+            if (saveDeleteDiv) {
+                saveDeleteDiv.style.animation = 'fadeOut 0.3s';
+                setTimeout(() => {
+                    if (saveDeleteDiv.parentNode) {
+                        saveDeleteDiv.remove();
+                    }
+                }, 300);
+            }
+            
+            // Reset upload state
+            imageUploaded = false;
+            sessionStorage.removeItem('imageWasUploaded');
+            
+            // Clear file inputs
+            const cameraInput = document.getElementById('cameraInput');
+            const galleryInput = document.getElementById('galleryInput');
+            if (cameraInput) cameraInput.value = '';
+            if (galleryInput) galleryInput.value = '';
+            
+            showTemporaryMessage('Bild wurde gelöscht', 'success');
+        } else {
+            showTemporaryMessage('Fehler beim Löschen', 'danger');
+        }
+    } catch (error) {
+        console.error('Error deleting image:', error);
+        showTemporaryMessage('Fehler beim Löschen: ' + error.message, 'danger');
+    } finally {
+        if (deleteButton) {
+            deleteButton.disabled = false;
+            deleteButton.innerHTML = originalText;
+        }
+    }
+    
+    return false; // Prevent any form submission
 }
 
 // Reattach all interactive handlers (used on initial load and after DOM updates)
@@ -451,7 +1400,10 @@ function initInteractiveHandlers() {
     // Handle camera input
     const cameraInput = document.getElementById('cameraInput');
     if (cameraInput) {
-        cameraInput.addEventListener('change', function() {
+        // Remove old listeners and add new one
+        const newCameraInput = cameraInput.cloneNode(true);
+        cameraInput.parentNode.replaceChild(newCameraInput, cameraInput);
+        newCameraInput.addEventListener('change', function() {
             updateImagePreview(this);
         }, { once: false });
     }
@@ -459,7 +1411,10 @@ function initInteractiveHandlers() {
     // Handle gallery input
     const galleryInput = document.getElementById('galleryInput');
     if (galleryInput) {
-        galleryInput.addEventListener('change', function() {
+        // Remove old listeners and add new one
+        const newGalleryInput = galleryInput.cloneNode(true);
+        galleryInput.parentNode.replaceChild(newGalleryInput, galleryInput);
+        newGalleryInput.addEventListener('change', function() {
             updateImagePreview(this);
         }, { once: false });
     }
@@ -527,12 +1482,10 @@ function initInteractiveHandlers() {
                     curCaseInfo.outerHTML = newCaseInfo.outerHTML;
                 }
                 
-                // Clear the input field after submission
+                // Keep the number in the input field (don't clear it)
                 const newInputField = document.getElementById('next_bussennr');
-                if (newInputField) {
-                    newInputField.value = '';
-                } else if (inputField) {
-                    inputField.value = '';
+                if (newInputField && inputField && inputField.value) {
+                    newInputField.value = inputField.value;
                 }
                 
                 // Reinitialize handlers on the newly injected DOM
@@ -550,23 +1503,7 @@ function initInteractiveHandlers() {
         });
     }
     
-    // Also mark save/delete buttons as form submissions
-    const saveForm = document.querySelector('form button[name="doneall"]');
-    const deleteForm = document.querySelector('form button[name="delall"]');
-    if (saveForm && saveForm.form) {
-        saveForm.form.addEventListener('submit', function() {
-            formSubmitting = true;
-            imageUploaded = false; // Clear upload state when saving
-            sessionStorage.removeItem('imageWasUploaded');
-        });
-    }
-    if (deleteForm && deleteForm.form) {
-        deleteForm.form.addEventListener('submit', function() {
-            formSubmitting = true;
-            imageUploaded = false; // Clear upload state when deleting
-            sessionStorage.removeItem('imageWasUploaded');
-        });
-    }
+    // Save and delete buttons are now handled by onclick functions (saveCase, deleteImage)
 }
 
 // Initialize event listeners when the document is ready

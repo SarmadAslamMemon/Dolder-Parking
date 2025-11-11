@@ -16,6 +16,32 @@ class create_database():
     with app.test_request_context():
         try:
             print("create databasese")
+            
+            # Check and repair html_template table if corrupted
+            try:
+                from sqlalchemy import text, inspect
+                inspector = inspect(db.engine)
+                if 'html_template' in inspector.get_table_names():
+                    # Try to query the table to check if it's corrupted
+                    try:
+                        db.session.execute(text("SELECT COUNT(*) FROM html_template"))
+                        print("html_template table is accessible")
+                    except Exception as table_error:
+                        if "crashed" in str(table_error).lower() or "repair" in str(table_error).lower():
+                            print("html_template table is corrupted, attempting repair...")
+                            try:
+                                # Drop the corrupted table
+                                db.session.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
+                                db.session.execute(text("DROP TABLE IF EXISTS html_template"))
+                                db.session.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+                                db.session.commit()
+                                print("✓ Dropped corrupted html_template table")
+                            except Exception as drop_error:
+                                print(f"Could not drop table: {drop_error}")
+            except Exception as check_error:
+                print(f"Error checking html_template table: {check_error}")
+            
+            # Create all tables
             db.create_all()
         except Exception as exception:
             print("got the following exception when attempting db.create_all(): " + str(exception))

@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from flask import Flask, render_template, request, url_for, redirect, session, send_file
+from flask import Flask, render_template, request, url_for, redirect, session, send_file, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, logout_user, current_user
 from flask_bcrypt import Bcrypt
@@ -150,16 +150,20 @@ def s_app():
     # fill local vars with default values
     doesExist = False
     wrongFile = False
+    alreadySaved = False
+    saveError = None
     imgw = 100
 
-    # search last number in database
-    try:
-        session["actnum"]
-        nextnum = session["actnum"]
-    except:
-        session["actnum"] = None
-        nextnum = session["actnum"]
-
+    # Initialize nextnum - empty on GET (page load/reload), use session on POST
+    nextnum = None
+    
+    # Clear all error flags on GET requests (page load/reload)
+    if request.method == 'GET':
+        doesExist = False
+        wrongFile = False
+        alreadySaved = False
+        saveError = None
+    
     #intial picture to show
     htmlpath = os.path.join(app.config['NO_IMAGE'], 'no-image-available.jpg')
 
@@ -175,21 +179,39 @@ def s_app():
         # go directly to number
         if request.form.get('gotonr') == 'gotonr':
             nextnum = request.form['next_bussennr']
-            nextnum = int(nextnum)
-            session["actnum"] = nextnum
+            if nextnum:
+                nextnum = int(nextnum)
+                session["actnum"] = nextnum
+            else:
+                nextnum = None
+                session["actnum"] = None
 
         #if request.form.get('nextfree') == 'nextfree':
         #    busse = models.Busse.query.order_by(models.Busse.db_bussennr.desc()).first()
         #    nextnum = busse.db_bussennr + 1
         #    nextnum = int(nextnum)
 
+    # On POST requests, use session value if available (but not after save redirect)
+    # Only set nextnum from session if it's a POST and we're not coming from a save
+    if request.method == 'POST' and session.get("actnum") is not None:
+        # Check if this is a save operation - if so, don't use the session value
+        if request.form.get('doneall') != 'doneall':
+            nextnum = session["actnum"]
+    
     # load picture if available (only if actnum is set)
-    if session["actnum"] is not None:
-        picpath = os.path.join(dir_path, app.config['UPLOAD_FOLDER'], str(session["actnum"]) + ".png")
-        if (os.path.exists(picpath)):
-            htmlpath = os.path.join(app.config['UPLOAD_FOLDER'], str(session["actnum"]) + ".png")
-        else:
-            htmlpath = os.path.join(app.config['NO_IMAGE'], 'no-image-available.jpg')
+    # Always start with no-image placeholder
+    htmlpath = os.path.join(app.config['NO_IMAGE'], 'no-image-available.jpg')
+    doesExist = False
+    
+    # Only load image if session has actnum (for POST requests when user is working on a case)
+    # On GET requests after save, session is cleared so this won't execute
+    if session.get("actnum") is not None:
+        # Only load image on POST requests (when user is actively working on a case)
+        # On GET requests after save, session is cleared so htmlpath stays as placeholder
+        if request.method == 'POST':
+            picpath = os.path.join(dir_path, app.config['UPLOAD_FOLDER'], str(session["actnum"]) + ".png")
+            if (os.path.exists(picpath)):
+                htmlpath = os.path.join(app.config['UPLOAD_FOLDER'], str(session["actnum"]) + ".png")
 
         # check if case already exists (only if actnum is set)
         try:
@@ -198,16 +220,17 @@ def s_app():
             doesExist = True
         except:
             doesExist = False
-    else:
-        htmlpath = os.path.join(app.config['NO_IMAGE'], 'no-image-available.jpg')
-        doesExist = False
         
     if (request.method == 'POST'):
+        # Check if this is an AJAX request
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept', '').find('application/json') != -1
 
         if request.files:
             if 'file' not in request.files:
                 print('No file part')
                 wrongFile = True
+                if is_ajax:
+                    return jsonify({"error": "Keine Datei ausgewählt"}), 400
                 
             file = request.files['file']
 
@@ -216,56 +239,403 @@ def s_app():
             if file.filename == '':
                 print('No selected file')
                 wrongFile = True
+                if is_ajax:
+                    return jsonify({"error": "Keine Datei ausgewählt"}), 400
 
             if file and allowed_file(file.filename):
+                # Ensure session["actnum"] is set before saving image
+                # Priority: 1) Form input, 2) Existing session, 3) Generate new
+                upload_case_number = None
+                
+                # First, try to get from form (if user entered a number)
+                if 'next_bussennr' in request.form and request.form['next_bussennr']:
+                    try:
+                        upload_case_number = int(request.form['next_bussennr'])
+                        print(f"[UPLOAD] Got case number from form: {upload_case_number}")
+                    except:
+                        pass
+                
+                # If not in form, use existing session value
+                if upload_case_number is None and session.get("actnum") is not None:
+                    upload_case_number = session["actnum"]
+                    print(f"[UPLOAD] Using case number from session: {upload_case_number}")
+                
+                # If still not set, get next available number
+                if upload_case_number is None:
+                    try:
+                        last_busse = models.Busse.query.order_by(models.Busse.db_bussennr.desc()).first()
+                        if last_busse:
+                            upload_case_number = last_busse.db_bussennr + 1
+                        else:
+                            upload_case_number = 1
+                        print(f"[UPLOAD] Generated new case number: {upload_case_number}")
+                    except Exception as e:
+                        print(f"[UPLOAD] Error getting next number: {e}")
+                        upload_case_number = 1
+                
+                # Set session to the determined case number
+                session["actnum"] = upload_case_number
+                print(f"[UPLOAD] Final case number for image: {upload_case_number}")
+                
                 filename = secure_filename(file.filename)
+                case_number = session["actnum"]
+                print(f"[UPLOAD] Processing image for case number: {case_number}")
+                print(f"[UPLOAD] Original filename: {file.filename}")
+                print(f"[UPLOAD] dir_path: {dir_path}")
+                print(f"[UPLOAD] UPLOAD_FOLDER: {app.config['UPLOAD_FOLDER']}")
+                
+                # Ensure upload directory exists
+                upload_dir = os.path.join(dir_path, app.config['UPLOAD_FOLDER'])
+                os.makedirs(upload_dir, exist_ok=True)
+                print(f"[UPLOAD] Upload directory: {upload_dir}")
+                print(f"[UPLOAD] Upload directory exists: {os.path.exists(upload_dir)}")
+                
                 # store file extension
-                ftype = filename.rsplit('.', 1)[1].lower()
-                # original upload name
+                ftype = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'png'
+                # original upload name (temporary)
                 oldname = os.path.join(dir_path, app.config['UPLOAD_FOLDER'], filename)
-                # save file
-                file.save(oldname)
-                # resize image (create tumbnail)
-                img = Image.open(oldname) # Open image
-                img = ImageOps.exif_transpose(img) # check image EXIF data
-                img_sq = crop_max_square(img) #.resize((thumb_width, thumb_width), Image.LANCZOS)
-                img_sq.thumbnail((500, 500), Image.Resampling.LANCZOS)
-                # create thumbnail name to match case nr.
-                thumbname = os.path.join(dir_path, app.config['UPLOAD_FOLDER'], str(session["actnum"]) + ".png")
-                # make png
-                img_sq.save(thumbname, 'PNG' , quality=50)
-                # delete original file only if file name is different
-                if (thumbname != oldname):
-                    os.remove(oldname)
-                htmlpath = os.path.join(app.config['UPLOAD_FOLDER'], str(session["actnum"]) + ".png")
+                print(f"[UPLOAD] Temporary file path: {oldname}")
+                
+                # save file temporarily
+                try:
+                    file.save(oldname)
+                    print(f"[UPLOAD] ✓ Saved temporary file to: {oldname}")
+                    print(f"[UPLOAD] Temporary file exists: {os.path.exists(oldname)}")
+                    if os.path.exists(oldname):
+                        temp_size = os.path.getsize(oldname)
+                        print(f"[UPLOAD] Temporary file size: {temp_size} bytes")
+                except Exception as save_error:
+                    print(f"[UPLOAD] ✗ ERROR saving temporary file: {save_error}")
+                    import traceback
+                    traceback.print_exc()
+                    if is_ajax:
+                        return jsonify({"error": f"Fehler beim Speichern: {str(save_error)}"}), 500
+                    wrongFile = True
+                    raise
+                
+                # resize image (create thumbnail)
+                try:
+                    print(f"[UPLOAD] Opening image: {oldname}")
+                    img = Image.open(oldname) # Open image
+                    print(f"[UPLOAD] Image opened successfully. Size: {img.size}, Format: {img.format}")
+                    img = ImageOps.exif_transpose(img) # check image EXIF data
+                    img_sq = crop_max_square(img) #.resize((thumb_width, thumb_width), Image.LANCZOS)
+                    img_sq.thumbnail((500, 500), Image.Resampling.LANCZOS)
+                    print(f"[UPLOAD] Image processed. New size: {img_sq.size}")
+                    
+                    # create final filename to match case number: {case_number}.png
+                    final_filename = str(case_number) + ".png"
+                    thumbname = os.path.join(dir_path, app.config['UPLOAD_FOLDER'], final_filename)
+                    print(f"[UPLOAD] Final image path: {thumbname}")
+                    
+                    # If a file with this name already exists, remove it first
+                    if os.path.exists(thumbname):
+                        os.remove(thumbname)
+                        print(f"[UPLOAD] Removed existing image: {thumbname}")
+                    
+                    # make png and save with case number as filename
+                    print(f"[UPLOAD] Saving image to: {thumbname}")
+                    img_sq.save(thumbname, 'PNG', quality=50)
+                    print(f"[UPLOAD] ✓ Saved renamed image to: {thumbname}")
+                    print(f"[UPLOAD] Image renamed from '{filename}' to '{final_filename}' for case {case_number}")
+                    
+                    # Verify the file was actually saved
+                    if os.path.exists(thumbname):
+                        saved_size = os.path.getsize(thumbname)
+                        print(f"[UPLOAD] ✓ Image verified! File size: {saved_size} bytes")
+                    else:
+                        print(f"[UPLOAD] ✗ ERROR: Image was not saved! File does not exist at: {thumbname}")
+                        raise Exception(f"Image was not saved to {thumbname}")
+                    
+                    # delete original temporary file
+                    if (thumbname != oldname) and os.path.exists(oldname):
+                        os.remove(oldname)
+                        print(f"[UPLOAD] Removed temporary file: {oldname}")
+                    
+                except Exception as img_error:
+                    print(f"[UPLOAD] ✗ Error processing image: {img_error}")
+                    import traceback
+                    traceback.print_exc()
+                    # Clean up temporary file
+                    if os.path.exists(oldname):
+                        try:
+                            os.remove(oldname)
+                            print(f"[UPLOAD] Cleaned up temporary file: {oldname}")
+                        except:
+                            pass
+                    if is_ajax:
+                        return jsonify({"error": f"Fehler beim Verarbeiten des Bildes: {str(img_error)}"}), 500
+                    wrongFile = True
+                    raise
+                
+                htmlpath = os.path.join(app.config['UPLOAD_FOLDER'], str(case_number) + ".png")
+                
+                # Verify image was saved with correct name
+                if os.path.exists(thumbname):
+                    file_size = os.path.getsize(thumbname)
+                    print(f"[UPLOAD] ✓ Image verified at: {thumbname}")
+                    print(f"[UPLOAD] ✓ File size: {file_size} bytes")
+                    print(f"[UPLOAD] ✓ Final filename: {final_filename}")
+                else:
+                    print(f"[UPLOAD] ✗ ERROR: Image not found at: {thumbname}")
+                    raise Exception(f"Image was not saved correctly to {thumbname}")
+                
+                # Return JSON for AJAX requests
+                if is_ajax:
+                    return jsonify({
+                        "success": True,
+                        "message": "Bild erfolgreich hochgeladen!",
+                        "image_path": htmlpath,
+                        "case_number": session["actnum"]
+                    }), 200
+            else:
+                wrongFile = True
+                if is_ajax:
+                    return jsonify({"error": "Ungültiges Dateiformat"}), 400
 
 
         # save case with picture and datetime
         if request.form.get('doneall') == 'doneall':
             print("doneall")
-            busse = models.Busse(   db_bussennr         = session["actnum"],
-                                    db_aufnahmedatum    = datetime.now(),)
-            # add a new case
-            db.session.add(busse)
-            # Commit the new case
-            db.session.commit()
-            #session["actnum"]
-            #nextnum = session["actnum"] + 1
-            htmlpath = os.path.join(app.config['UPLOAD_FOLDER'], str(session["actnum"]) + ".png")
-            #htmlpath = os.path.join(app.config['NO_IMAGE'], 'no-image-available.jpg')
-            return redirect("/s_app")
+            # Check if this is an AJAX request
+            is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept', '').find('application/json') != -1
+            
+            # IMPORTANT: Set session["actnum"] from form input FIRST (like original code)
+            # This ensures the image path matches the case number being saved
+            if 'next_bussennr' in request.form and request.form['next_bussennr']:
+                try:
+                    nextnum = int(request.form['next_bussennr'])
+                    session["actnum"] = nextnum
+                    print(f"[SAVE] Set session actnum from form: {nextnum}")
+                except:
+                    pass  # If conversion fails, use existing logic
+            
+            # Check if actnum is set, if not get the next available number
+            if session.get("actnum") is None:
+                # Get the highest busse number and increment
+                try:
+                    last_busse = models.Busse.query.order_by(models.Busse.db_bussennr.desc()).first()
+                    if last_busse:
+                        session["actnum"] = last_busse.db_bussennr + 1
+                    else:
+                        session["actnum"] = 1
+                    print(f"[SAVE] Generated new actnum: {session['actnum']}")
+                except:
+                    session["actnum"] = 1
+                    print(f"[SAVE] Set default actnum: 1")
+            
+            if session["actnum"] is not None:
+                # Check if case already exists before saving
+                existing_busse = models.Busse.query.filter_by(db_bussennr=session["actnum"]).first()
+                
+                if existing_busse:
+                    # Case already exists - return JSON error for AJAX
+                    if is_ajax:
+                        return jsonify({"error": f"Fall {session['actnum']} wurde bereits gespeichert!"}), 400
+                    # Case already exists - set error flags
+                    alreadySaved = True
+                    saveError = f"Fall {session['actnum']} wurde bereits gespeichert!"
+                    # Keep the session actnum so user can see the error
+                    # Don't clear session yet
+                else:
+                    # Case doesn't exist - proceed with saving
+                    try:
+                        case_number = session["actnum"]
+                        print(f"[SAVE] Attempting to save case number: {case_number}")
+                        
+                        # Get license plate number from form if provided
+                        license_plate = request.form.get('db_nummerschild', '').strip() if 'db_nummerschild' in request.form else None
+                        print(f"[SAVE] Form data received:")
+                        print(f"      - next_bussennr: {request.form.get('next_bussennr', 'N/A')}")
+                        print(f"      - db_nummerschild: {request.form.get('db_nummerschild', 'N/A')}")
+                        if license_plate:
+                            print(f"[SAVE] License plate detected: {license_plate}")
+                        else:
+                            print(f"[SAVE] No license plate in form data")
+                        
+                        # Check if image exists for this case
+                        image_path = os.path.join(dir_path, app.config['UPLOAD_FOLDER'], str(case_number) + ".png")
+                        image_exists = os.path.exists(image_path)
+                        print(f"[SAVE] Checking for image at: {image_path}")
+                        print(f"[SAVE] Image exists: {image_exists}")
+                        
+                        # If image doesn't exist, try to find and rename any uploaded image
+                        if not image_exists:
+                            print(f"[SAVE] ⚠ Image not found for case {case_number}, searching for uploaded images...")
+                            
+                            # Check if there's a file upload in this request
+                            if request.files and 'file' in request.files:
+                                uploaded_file = request.files['file']
+                                if uploaded_file.filename:
+                                    print(f"[SAVE] Found file upload in save request: {uploaded_file.filename}")
+                                    # Save the image now with the correct case number
+                                    try:
+                                        filename = secure_filename(uploaded_file.filename)
+                                        temp_path = os.path.join(dir_path, app.config['UPLOAD_FOLDER'], filename)
+                                        uploaded_file.save(temp_path)
+                                        
+                                        # Process and rename to case number
+                                        img = Image.open(temp_path)
+                                        img = ImageOps.exif_transpose(img)
+                                        img_sq = crop_max_square(img)
+                                        img_sq.thumbnail((500, 500), Image.Resampling.LANCZOS)
+                                        
+                                        # Save with case number
+                                        img_sq.save(image_path, 'PNG', quality=50)
+                                        print(f"[SAVE] ✓ Saved image during save operation: {image_path}")
+                                        
+                                        # Remove temp file
+                                        if os.path.exists(temp_path) and temp_path != image_path:
+                                            os.remove(temp_path)
+                                        
+                                        image_exists = True
+                                    except Exception as img_save_error:
+                                        print(f"[SAVE] ✗ Error saving image during save: {img_save_error}")
+                            
+                            # If still no image, check for any recently uploaded files that might need renaming
+                            if not image_exists:
+                                # Look for images in the upload folder that might need to be renamed
+                                upload_dir = os.path.join(dir_path, app.config['UPLOAD_FOLDER'])
+                                if os.path.exists(upload_dir):
+                                    # Check if there's an image that was just uploaded (check by modification time)
+                                    try:
+                                        import time
+                                        all_files = os.listdir(upload_dir)
+                                        png_files = [f for f in all_files if f.endswith('.png')]
+                                        if png_files:
+                                            # Get the most recently modified PNG file
+                                            png_files_with_time = []
+                                            for f in png_files:
+                                                file_path = os.path.join(upload_dir, f)
+                                                mtime = os.path.getmtime(file_path)
+                                                png_files_with_time.append((f, mtime, file_path))
+                                            
+                                            # Sort by modification time (newest first)
+                                            png_files_with_time.sort(key=lambda x: x[1], reverse=True)
+                                            
+                                            # Check the most recent file (might be the uploaded one)
+                                            if png_files_with_time:
+                                                recent_file, recent_mtime, recent_path = png_files_with_time[0]
+                                                # If file was modified in the last 5 minutes, it might be the uploaded one
+                                                if (time.time() - recent_mtime) < 300:  # 5 minutes
+                                                    # Check if it's not already the correct name
+                                                    if recent_file != str(case_number) + ".png":
+                                                        print(f"[SAVE] Found recently uploaded image: {recent_file}, renaming to {case_number}.png")
+                                                        try:
+                                                            # Copy/rename the file
+                                                            img = Image.open(recent_path)
+                                                            img = ImageOps.exif_transpose(img)
+                                                            img_sq = crop_max_square(img)
+                                                            img_sq.thumbnail((500, 500), Image.Resampling.LANCZOS)
+                                                            img_sq.save(image_path, 'PNG', quality=50)
+                                                            print(f"[SAVE] ✓ Renamed and saved image: {image_path}")
+                                                            # Remove old file
+                                                            if recent_path != image_path:
+                                                                os.remove(recent_path)
+                                                            image_exists = True
+                                                        except Exception as rename_error:
+                                                            print(f"[SAVE] ✗ Error renaming image: {rename_error}")
+                                    except Exception as search_error:
+                                        print(f"[SAVE] ✗ Error searching for images: {search_error}")
+                        
+                        if not image_exists:
+                            print(f"[SAVE] ⚠ WARNING: Image file not found for case {case_number}")
+                            print(f"[SAVE] ⚠ Image path checked: {image_path}")
+                            print(f"[SAVE] Case will be saved, but NO IMAGE will be associated")
+                        else:
+                            print(f"[SAVE] ✓ Image file confirmed at: {image_path}")
+                            file_size = os.path.getsize(image_path)
+                            print(f"[SAVE] ✓ Image file size: {file_size} bytes")
+                        
+                        busse = models.Busse(   db_bussennr         = case_number,
+                                                db_aufnahmedatum    = datetime.now(),
+                                                db_nummerschild     = license_plate if license_plate else None)
+                        # add a new case
+                        db.session.add(busse)
+                        # Commit the new case
+                        db.session.commit()
+                        print(f"[SAVE] Committed to database")
+                        
+                        # Verify the save was successful by querying the database
+                        saved_busse = models.Busse.query.filter_by(db_bussennr=case_number).first()
+                        if saved_busse:
+                            print(f"[SAVE] ✓ Successfully saved case {case_number} to database.")
+                            print(f"      - ID: {saved_busse.id}")
+                            print(f"      - Date: {saved_busse.db_aufnahmedatum}")
+                            print(f"      - License Plate: {saved_busse.db_nummerschild or 'N/A'}")
+                            
+                            # Final check for image after save
+                            final_image_check = os.path.exists(image_path)
+                            print(f"      - Image file exists: {'Yes' if final_image_check else 'No'}")
+                            if final_image_check:
+                                file_size = os.path.getsize(image_path)
+                                print(f"      - Image file size: {file_size} bytes")
+                                print(f"      - Image path: {image_path}")
+                            else:
+                                print(f"      - Image NOT FOUND at: {image_path}")
+                            
+                            # Double-check license plate was saved
+                            if license_plate and saved_busse.db_nummerschild != license_plate:
+                                print(f"[SAVE] ✗ ERROR: License plate mismatch!")
+                                print(f"      Expected: {license_plate}")
+                                print(f"      Got: {saved_busse.db_nummerschild}")
+                        else:
+                            print(f"[SAVE] ✗ WARNING: Case {case_number} was not found in database after commit!")
+                        
+                        htmlpath = os.path.join(app.config['UPLOAD_FOLDER'], str(case_number) + ".png")
+                        
+                        # Clear session after saving to reset page to initial state
+                        session["actnum"] = None
+                        
+                        # Return JSON success for AJAX requests
+                        if is_ajax:
+                            return jsonify({
+                                "success": True, 
+                                "message": f"Fall {case_number} erfolgreich gespeichert!",
+                                "case_number": case_number,
+                                "license_plate": license_plate,
+                                "image_saved": image_exists
+                            }), 200
+                        
+                        return redirect("/s_app")
+                    except Exception as e:
+                        # Database error occurred
+                        print(f"[SAVE] ✗ Error saving case: {str(e)}")
+                        import traceback
+                        traceback.print_exc()
+                        if is_ajax:
+                            return jsonify({"error": f"Fehler beim Speichern: {str(e)}"}), 500
+                        saveError = f"Fehler beim Speichern: {str(e)}"
+                        alreadySaved = False
+            
+            # If we reach here, there was an error - return JSON for AJAX or render template
+            if is_ajax:
+                return jsonify({"error": saveError or "Unbekannter Fehler"}), 400
+            # Don't redirect, show error on same page
 
         
         # delete picture and start over
         if request.form.get('delall') == 'delall':
+            # Check if this is an AJAX request
+            is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept', '').find('application/json') != -1
+            
             try:
-                thumbname = os.path.join(dir_path, app.config['UPLOAD_FOLDER'], str(session["actnum"]) + ".png")
+                if session.get("actnum") is not None:
+                    thumbname = os.path.join(dir_path, app.config['UPLOAD_FOLDER'], str(session["actnum"]) + ".png")
+                    if os.path.exists(thumbname):
+                        os.remove(thumbname)
+                
                 htmlpath = os.path.join(app.config['NO_IMAGE'], 'no-image-available.jpg')
-                os.remove(thumbname)
-            except:
+                
+                # Return JSON for AJAX requests
+                if is_ajax:
+                    return jsonify({"success": True, "message": "Bild wurde gelöscht"}), 200
+            except Exception as e:
+                if is_ajax:
+                    return jsonify({"error": f"Fehler beim Löschen: {str(e)}"}), 500
                 wrongFile = True
 
-    return render_template('s_app.html', nextnum=nextnum, doesExist=doesExist, wrongFile=wrongFile, htmlpath=htmlpath)
+    return render_template('s_app.html', nextnum=nextnum, doesExist=doesExist, wrongFile=wrongFile, htmlpath=htmlpath, alreadySaved=alreadySaved, saveError=saveError)
 
 
 # overview site for admins
@@ -542,6 +912,17 @@ def flask_health_check():
 # Import and register upload routes
 from upload_routes import register_upload_routes
 register_upload_routes(app, db)
+
+# Import and register plate extraction routes
+try:
+    from plate_extraction_routes import register_plate_extraction_routes
+    register_plate_extraction_routes(app)
+    print("Plate extraction routes registered successfully")
+except Exception as e:
+    print(f"Warning: Failed to register plate extraction routes: {e}")
+    print("Plate extraction functionality will not be available")
+    import traceback
+    traceback.print_exc()
 
 @app.route("/")
 def home():
