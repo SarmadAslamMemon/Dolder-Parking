@@ -58,7 +58,10 @@
 		<div class="nav-container">
 			<div class="nav-left">
 				<a class="brand" href="{% if current_user.is_authenticated %}/s_all{% else %}/{% endif %}">
-					<img src="{{ url_for('static', filename='applogo.png') }}" alt="Dolder Parking Logo" class="brand-logo">
+					{% set active_logo = get_active_logo_path() %}
+					{% set logo_width = get_logo_width() %}
+					{% set logo_height = get_logo_height() %}
+					<img src="{{ url_for('static', filename=active_logo) }}" alt="Dolder Parking Logo" class="brand-logo" style="width: {{ logo_width }}; height: {{ logo_height }};">
 				</a>
 				<nav class="nav-links">
 					{% if current_user.is_authenticated %}

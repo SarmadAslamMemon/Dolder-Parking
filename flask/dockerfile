@@ -6,7 +6,11 @@ RUN pip3 install --upgrade pip
 
 # get curl for healthchecks and build dependencies
 RUN apt-get update \
-    && apt-get install -y curl jq build-essential pkg-config default-libmysqlclient-dev libffi-dev libcairo2-dev libpango1.0-dev libgdk-pixbuf2.0-dev libffi-dev shared-mime-info
+    && apt-get install -y --no-install-recommends \
+        curl jq build-essential pkg-config \
+        default-libmysqlclient-dev \
+        libffi-dev libcairo2-dev libpango1.0-dev libgdk-pixbuf2.0-dev shared-mime-info \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

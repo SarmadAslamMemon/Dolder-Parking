@@ -913,6 +913,31 @@ def flask_health_check():
 from upload_routes import register_upload_routes
 register_upload_routes(app, db)
 
+# Import and register logo routes
+try:
+    from logo_routes import register_logo_routes, get_active_logo_path, get_logo_width, get_logo_height
+    register_logo_routes(app, db)
+    # Make logo functions available to templates
+    app.jinja_env.globals['get_active_logo_path'] = get_active_logo_path
+    app.jinja_env.globals['get_logo_width'] = get_logo_width
+    app.jinja_env.globals['get_logo_height'] = get_logo_height
+    print("Logo upload routes registered successfully")
+except Exception as e:
+    print(f"Warning: Failed to register logo routes: {e}")
+    print("Logo upload functionality will not be available")
+    import traceback
+    traceback.print_exc()
+    # Fallback functions for templates
+    def get_active_logo_path():
+        return 'applogo.png'
+    def get_logo_width():
+        return 'auto'
+    def get_logo_height():
+        return '2.5rem'
+    app.jinja_env.globals['get_active_logo_path'] = get_active_logo_path
+    app.jinja_env.globals['get_logo_width'] = get_logo_width
+    app.jinja_env.globals['get_logo_height'] = get_logo_height
+
 # Import and register plate extraction routes
 try:
     from plate_extraction_routes import register_plate_extraction_routes

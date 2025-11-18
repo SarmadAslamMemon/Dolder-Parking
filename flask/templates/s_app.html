@@ -54,9 +54,9 @@
 			</div>
 		{% else %}
 			<div class="notice warning" aria-live="polite" id="numberStatus">
-				<i class="fas fa-exclamation-triangle"></i>
-				<span>Achtung: Nummer {{ nextnum }} existiert bereits. Sie können trotzdem ein neues Foto hinzufügen.</span>
-			</div>
+			<i class="fas fa-exclamation-triangle"></i>
+			<span>Achtung: Nummer {{ nextnum }} existiert bereits. Sie können trotzdem ein neues Foto hinzufügen.</span>
+		</div>
 		{% endif %}
 	{% endif %}
 	{% if wrongFile and request.method == 'POST' %}
@@ -136,9 +136,9 @@
 						<i class="fas fa-trash"></i>
 						Löschen
 					</button>
-				</div>
 			</div>
 		</div>
+	</div>
 	</div>
 </section>
 
@@ -242,7 +242,8 @@
 		flex: 1;
 		display: flex;
 		flex-direction: column;
-		overflow: hidden;
+		overflow-y: auto;
+		overflow-x: hidden;
 		padding: 0.75rem;
 		margin: 0;
 		border-radius: 8px;
@@ -286,20 +287,29 @@
 		flex-shrink: 0;
 		margin-top: auto;
 		padding-top: 0.5rem;
+		display: block !important;
+		visibility: visible !important;
+		overflow: visible !important;
 	}
 	
 	.action-buttons {
 		gap: 0.5rem;
+		display: flex !important;
+		visibility: visible !important;
 	}
 	
 	.action-buttons > div {
 		gap: 0.5rem;
+		display: flex !important;
+		visibility: visible !important;
 	}
 	
 	.action-buttons .btn {
 		padding: 0.6rem 0.75rem;
 		font-size: 0.85rem;
 		height: 44px;
+		display: flex !important;
+		visibility: visible !important;
 	}
 	
 	.action-buttons .btn i {
@@ -445,10 +455,28 @@
 		max-height: 130px;
 	}
 	
+	.form-footer {
+		display: block !important;
+		visibility: visible !important;
+		overflow: visible !important;
+	}
+	
+	.action-buttons {
+		display: flex !important;
+		visibility: visible !important;
+	}
+	
+	.action-buttons > div {
+		display: flex !important;
+		visibility: visible !important;
+	}
+	
 	.action-buttons .btn {
 		height: 40px;
 		padding: 0.5rem;
 		font-size: 0.8rem;
+		display: flex !important;
+		visibility: visible !important;
 	}
 }
 </style>
@@ -501,8 +529,8 @@ window.addEventListener('DOMContentLoaded', function() {
         const imageSrc = imagePreview.src;
         // Always clear if it's placeholder or if we're on a fresh page (no active case)
         if (imageSrc.includes('no-image-available.jpg') || !imageSrc.includes('carpics')) {
-            clearUploadedImage();
-            sessionStorage.removeItem('imageWasUploaded');
+        clearUploadedImage();
+        sessionStorage.removeItem('imageWasUploaded');
             imageUploaded = false;
             
             // Hide save/delete buttons
@@ -512,8 +540,8 @@ window.addEventListener('DOMContentLoaded', function() {
             }
         } else {
             // Image exists from server for active case, mark as uploaded
-            imageUploaded = true;
-            sessionStorage.setItem('imageWasUploaded', 'true');
+        imageUploaded = true;
+        sessionStorage.setItem('imageWasUploaded', 'true');
             
             // Show save/delete buttons
             const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
@@ -1021,9 +1049,9 @@ async function uploadImage() {
                 showTemporaryMessage(data.message || 'Bild erfolgreich hochgeladen!', 'success');
                 
                 // Mark as uploaded
-                imageUploaded = true;
-                sessionStorage.setItem('imageWasUploaded', 'true');
-                
+            imageUploaded = true;
+            sessionStorage.setItem('imageWasUploaded', 'true');
+            
                 // Double-check buttons are visible after a short delay
                 setTimeout(() => {
                     const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
