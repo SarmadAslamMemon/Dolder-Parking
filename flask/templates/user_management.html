@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}User Management{% endblock %}
+{% block content %}
+
+<section class="page-header">
+	<h1 class="page-title">
+		<i class="fas fa-users-cog"></i>
+		User Management
+	</h1>
+	<div class="page-actions">
+		{% if session.name %}
+			<span class="user-badge">
+				<i class="fas fa-user"></i>
+				{{ session.name }}
+			</span>
+		{% endif %}
+		<a href="/s_all" class="btn btn-outline">
+			<i class="fas fa-arrow-left"></i>
+			Back to Dashboard
+		</a>
+		<a href="/register" class="btn btn-primary">
+			<i class="fas fa-user-plus"></i>
+			Create New User
+		</a>
+	</div>
+</section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+	{% if messages %}
+		{% for category, message in messages %}
+			<div class="notice {{ 'success' if category == 'success' else 'danger' }}">
+				<i class="fas {{ 'fa-check-circle' if category == 'success' else 'fa-exclamation-triangle' }}"></i>
+				<span>{{ message }}</span>
+			</div>
+		{% endfor %}
+	{% endif %}
+{% endwith %}
+
+<section class="card form-card">
+	<div class="card-header">
+		<h3 class="card-title">
+			<i class="fas fa-list"></i>
+			All Users
+		</h3>
+	</div>
+	
+	{% if users and users|length > 0 %}
+	<div class="table-container" style="overflow-x: auto;">
+		<table class="user-table" style="width: 100%; border-collapse: collapse;">
+			<thead>
+				<tr style="background: rgba(255,255,255,.06); border-bottom: 2px solid rgba(255,255,255,.12);">
+					<th style="padding: 1rem; text-align: left; color: #e6eef5; font-weight: 600;">ID</th>
+					<th style="padding: 1rem; text-align: left; color: #e6eef5; font-weight: 600;">Username</th>
+					<th style="padding: 1rem; text-align: left; color: #e6eef5; font-weight: 600;">Permission</th>
+					<th style="padding: 1rem; text-align: left; color: #e6eef5; font-weight: 600;">Status</th>
+					<th style="padding: 1rem; text-align: center; color: #e6eef5; font-weight: 600;">Actions</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for user in users %}
+				<tr style="border-bottom: 1px solid rgba(255,255,255,.08); transition: background 0.2s ease;" 
+				    onmouseover="this.style.background='rgba(255,255,255,.03)'" 
+				    onmouseout="this.style.background='transparent'">
+					<td style="padding: 1rem; color: #cfd7df;">{{ user.id }}</td>
+					<td style="padding: 1rem; color: #e6eef5; font-weight: 500;">
+						{% if user.id == current_user.id %}
+							<i class="fas fa-user-circle" style="color: #6ec1ff; margin-right: 0.5rem;"></i>
+						{% endif %}
+						{{ user.username }}
+						{% if user.id == current_user.id %}
+							<span style="font-size: 0.75rem; color: #6ec1ff; margin-left: 0.5rem;">(You)</span>
+						{% endif %}
+					</td>
+					<td style="padding: 1rem;">
+						<span class="permission-badge permission-{{ user.permission.value.lower() }}">
+							{{ user.permission.value.upper() }}
+						</span>
+					</td>
+					<td style="padding: 1rem;">
+						{% if user.disabled %}
+							<span class="status-badge status-disabled">
+								<i class="fas fa-ban"></i>
+								Disabled
+							</span>
+						{% else %}
+							<span class="status-badge status-active">
+								<i class="fas fa-check-circle"></i>
+								Active
+							</span>
+						{% endif %}
+					</td>
+					<td style="padding: 1rem; text-align: center;">
+						<div style="display: flex; gap: 0.5rem; justify-content: center; align-items: center;">
+							<a href="/user_management/edit/{{ user.id }}" class="btn btn-outline btn-sm" title="Edit User">
+								<i class="fas fa-edit"></i>
+								Edit
+							</a>
+							{% if user.disabled %}
+								<form action="/user_management/enable/{{ user.id }}" method="post" style="display: inline;" 
+								      onsubmit="return confirm('Enable user {{ user.username }}?');">
+									<button type="submit" class="btn btn-primary btn-sm" title="Enable User">
+										<i class="fas fa-check"></i>
+										Enable
+									</button>
+								</form>
+							{% else %}
+								{% if user.id != current_user.id %}
+									<form action="/user_management/delete/{{ user.id }}" method="post" style="display: inline;" 
+									      onsubmit="return confirm('Disable user {{ user.username }}? This will prevent them from logging in.');">
+										<button type="submit" class="btn btn-outline btn-sm btn-danger" title="Disable User">
+											<i class="fas fa-ban"></i>
+											Disable
+										</button>
+									</form>
+								{% endif %}
+							{% endif %}
+						</div>
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+	{% else %}
+	<div style="padding: 2rem; text-align: center; color: #a0aec0;">
+		<i class="fas fa-users" style="font-size: 3rem; opacity: 0.3; margin-bottom: 1rem;"></i>
+		<p>No users found.</p>
+	</div>
+	{% endif %}
+</section>
+
+<style>
+.user-table {
+	margin-top: 1rem;
+}
+
+.user-table tbody tr:hover {
+	background: rgba(255,255,255,.03);
+}
+
+.permission-badge {
+	display: inline-block;
+	padding: 0.35rem 0.75rem;
+	border-radius: 6px;
+	font-size: 0.85rem;
+	font-weight: 600;
+	text-transform: uppercase;
+}
+
+.permission-none {
+	background: rgba(255, 255, 255, 0.1);
+	color: #cfd7df;
+	border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.permission-app {
+	background: rgba(110, 193, 255, 0.15);
+	color: #6ec1ff;
+	border: 1px solid rgba(110, 193, 255, 0.3);
+}
+
+.permission-admin {
+	background: rgba(255, 193, 7, 0.15);
+	color: #ffc107;
+	border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.permission-all {
+	background: rgba(52, 199, 89, 0.15);
+	color: #34c759;
+	border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.status-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.35rem 0.75rem;
+	border-radius: 6px;
+	font-size: 0.85rem;
+	font-weight: 500;
+}
+
+.status-active {
+	background: rgba(52, 199, 89, 0.15);
+	color: #34c759;
+	border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.status-disabled {
+	background: rgba(255, 69, 58, 0.15);
+	color: #ff453a;
+	border: 1px solid rgba(255, 69, 58, 0.3);
+}
+
+.btn-sm {
+	padding: 0.4rem 0.8rem;
+	font-size: 0.875rem;
+	height: auto;
+}
+
+.btn-danger {
+	color: #ff6b6b;
+	border-color: rgba(255, 107, 107, 0.3);
+}
+
+.btn-danger:hover {
+	background: rgba(255, 107, 107, 0.1);
+	border-color: rgba(255, 107, 107, 0.5);
+	color: #ff5252;
+}
+
+.table-container {
+	margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+	.table-container {
+		overflow-x: auto;
+	}
+	
+	.user-table {
+		min-width: 600px;
+	}
+	
+	.user-table th,
+	.user-table td {
+		padding: 0.75rem 0.5rem;
+		font-size: 0.875rem;
+	}
+	
+	.btn-sm {
+		padding: 0.3rem 0.6rem;
+		font-size: 0.8rem;
+	}
+}
+</style>
+
+{% endblock %}
+

@@ -1,0 +1,936 @@
+{% extends "base.html" %}
+{% block title %}User Management{% endblock %}
+{% block content %}
+
+<section class="page-header">
+	<h1 class="page-title">
+		<i class="fas fa-users-cog"></i>
+		User Management
+	</h1>
+	<div class="page-actions">
+		{% if session.name %}
+			<span class="user-badge">
+				<i class="fas fa-user"></i>
+				{{ session.name }}
+			</span>
+		{% endif %}
+		<a href="/s_all" class="btn btn-outline">
+			<i class="fas fa-arrow-left"></i>
+			Back to Dashboard
+		</a>
+	</div>
+</section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+	{% if messages %}
+		{% for category, message in messages %}
+			<div class="notice {{ 'success' if category == 'success' else 'danger' }}">
+				<i class="fas {{ 'fa-check-circle' if category == 'success' else 'fa-exclamation-triangle' }}"></i>
+				<span>{{ message }}</span>
+			</div>
+		{% endfor %}
+	{% endif %}
+{% endwith %}
+
+<!-- Create New User Section -->
+<section class="card form-card">
+	<div class="card-header">
+		<h3 class="card-title">
+			<i class="fas fa-user-plus"></i>
+			Create New User
+		</h3>
+	</div>
+	
+	<form action="/register" method="post" class="form">
+		<input type="hidden" name="action" value="create_user">
+		<div class="form-section">
+			<div class="form-grid">
+				<div class="field">
+					<label class="label" for="new_username">
+						<i class="fas fa-user"></i>
+						Username
+					</label>
+					<input type="text" name="username" id="new_username" class="input" placeholder="Enter username" required>
+				</div>
+				
+				<div class="field">
+					<label class="label" for="new_password">
+						<i class="fas fa-lock"></i>
+						Password
+					</label>
+					<input type="password" name="password" id="new_password" class="input" placeholder="Enter password" required>
+				</div>
+				
+				<div class="field">
+					<label class="label" for="new_permission">
+						<i class="fas fa-shield-alt"></i>
+						Permission Level
+					</label>
+					<select name="permission" id="new_permission" class="input" required>
+						<option value="">Select Permission</option>
+						<option value="none">NONE - No Access</option>
+						<option value="app">APP - App Access Only</option>
+						<option value="admin">ADMIN - Administrator</option>
+						<option value="all">ALL - Full Access</option>
+					</select>
+				</div>
+			</div>
+		</div>
+		
+		<div class="form-footer">
+			<button type="submit" class="btn btn-primary">
+				<i class="fas fa-user-plus"></i>
+				Create User
+			</button>
+		</div>
+	</form>
+</section>
+
+<!-- Existing Users Section -->
+<section class="card form-card">
+	<div class="card-header">
+		<h3 class="card-title">
+			<i class="fas fa-list"></i>
+			All Users
+		</h3>
+	</div>
+	
+	{% if users and users|length > 0 %}
+	<!-- Search Bar -->
+	<div class="search-container">
+		<div class="search-wrapper">
+			<i class="fas fa-search search-icon"></i>
+			<input type="text" id="userSearch" class="search-input" placeholder="Search users by username, ID, permission, or status..." autocomplete="off">
+			<button type="button" id="clearSearch" class="search-clear" style="display: none;" title="Clear search">
+				<i class="fas fa-times"></i>
+			</button>
+		</div>
+		<div class="search-results-info" id="searchResultsInfo" style="display: none;">
+			<span id="searchResultsText"></span>
+		</div>
+	</div>
+	<!-- Desktop Table View -->
+	<div class="table-container" style="overflow-x: auto;" id="userTableContainer">
+		<table class="user-table" style="width: 100%; border-collapse: collapse;" id="userTable">
+			<thead>
+				<tr style="background: rgba(255,255,255,.06); border-bottom: 2px solid rgba(255,255,255,.12);">
+					<th style="padding: 1rem; text-align: left; color: #e6eef5; font-weight: 600;">ID</th>
+					<th style="padding: 1rem; text-align: left; color: #e6eef5; font-weight: 600;">Username</th>
+					<th style="padding: 1rem; text-align: left; color: #e6eef5; font-weight: 600;">Permission</th>
+					<th style="padding: 1rem; text-align: left; color: #e6eef5; font-weight: 600;">Status</th>
+					<th style="padding: 1rem; text-align: center; color: #e6eef5; font-weight: 600;">Actions</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for user in users %}
+				<tr class="user-row" data-username="{{ user.username|lower }}" data-id="{{ user.id }}" data-permission="{{ user.permission.value|lower }}" data-status="{{ 'disabled' if user.disabled else 'active' }}" style="border-bottom: 1px solid rgba(255,255,255,.08); transition: background 0.2s ease;" 
+				    onmouseover="this.style.background='rgba(255,255,255,.03)'" 
+				    onmouseout="this.style.background='transparent'">
+					<td style="padding: 1rem; color: #cfd7df;">{{ user.id }}</td>
+					<td style="padding: 1rem; color: #e6eef5; font-weight: 500;">
+						{% if user.id == current_user.id %}
+							<i class="fas fa-user-circle" style="color: #6ec1ff; margin-right: 0.5rem;"></i>
+						{% endif %}
+						{{ user.username }}
+						{% if user.id == current_user.id %}
+							<span style="font-size: 0.75rem; color: #6ec1ff; margin-left: 0.5rem;">(You)</span>
+						{% endif %}
+					</td>
+					<td style="padding: 1rem;">
+						<span class="permission-badge permission-{{ user.permission.value.lower() }}">
+							{{ user.permission.value.upper() }}
+						</span>
+					</td>
+					<td style="padding: 1rem;">
+						{% if user.disabled %}
+							<span class="status-badge status-disabled">
+								<i class="fas fa-ban"></i>
+								Disabled
+							</span>
+						{% else %}
+							<span class="status-badge status-active">
+								<i class="fas fa-check-circle"></i>
+								Active
+							</span>
+						{% endif %}
+					</td>
+					<td style="padding: 1rem; text-align: center;">
+						<div style="display: flex; gap: 0.5rem; justify-content: center; align-items: center; flex-wrap: wrap;">
+							<button type="button" class="btn btn-outline btn-sm" onclick="openEditModal({{ user.id }}, '{{ user.username }}', '{{ user.permission.value }}', {{ 'true' if user.disabled else 'false' }})" title="Edit User">
+								<i class="fas fa-edit"></i>
+								Edit
+							</button>
+							{% if user.disabled %}
+								<form action="/register" method="post" style="display: inline;" 
+								      onsubmit="return confirm('Enable user {{ user.username }}?');">
+									<input type="hidden" name="action" value="enable_user">
+									<input type="hidden" name="user_id" value="{{ user.id }}">
+									<button type="submit" class="btn btn-primary btn-sm" title="Enable User">
+										<i class="fas fa-check"></i>
+										Enable
+									</button>
+								</form>
+							{% else %}
+								{% if user.id != current_user.id %}
+									<form action="/register" method="post" style="display: inline;" 
+									      onsubmit="return confirm('Disable user {{ user.username }}? This will prevent them from logging in.');">
+										<input type="hidden" name="action" value="delete_user">
+										<input type="hidden" name="user_id" value="{{ user.id }}">
+										<button type="submit" class="btn btn-outline btn-sm btn-danger" title="Disable User">
+											<i class="fas fa-ban"></i>
+											Disable
+										</button>
+									</form>
+								{% endif %}
+							{% endif %}
+						</div>
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+	
+	<!-- Mobile Card View -->
+	<div class="user-cards-mobile" id="userCardsContainer">
+		{% for user in users %}
+		<div class="user-card user-row" data-username="{{ user.username|lower }}" data-id="{{ user.id }}" data-permission="{{ user.permission.value|lower }}" data-status="{{ 'disabled' if user.disabled else 'active' }}">
+			<div class="user-card-header">
+				<div class="user-card-username">
+					{% if user.id == current_user.id %}
+						<i class="fas fa-user-circle" style="color: #6ec1ff;"></i>
+					{% endif %}
+					{{ user.username }}
+					{% if user.id == current_user.id %}
+						<span style="font-size: 0.75rem; color: #6ec1ff; margin-left: 0.5rem;">(You)</span>
+					{% endif %}
+				</div>
+				<div class="user-card-id">ID: {{ user.id }}</div>
+			</div>
+			<div class="user-card-body">
+				<div class="user-card-row">
+					<span class="user-card-label">Permission:</span>
+					<span class="permission-badge permission-{{ user.permission.value.lower() }}">
+						{{ user.permission.value.upper() }}
+					</span>
+				</div>
+				<div class="user-card-row">
+					<span class="user-card-label">Status:</span>
+					{% if user.disabled %}
+						<span class="status-badge status-disabled">
+							<i class="fas fa-ban"></i>
+							Disabled
+						</span>
+					{% else %}
+						<span class="status-badge status-active">
+							<i class="fas fa-check-circle"></i>
+							Active
+						</span>
+					{% endif %}
+				</div>
+			</div>
+			<div class="user-card-actions">
+				<button type="button" class="btn btn-outline btn-sm" onclick="openEditModal({{ user.id }}, '{{ user.username }}', '{{ user.permission.value }}', {{ 'true' if user.disabled else 'false' }})" title="Edit User">
+					<i class="fas fa-edit"></i>
+					Edit
+				</button>
+				{% if user.disabled %}
+					<form action="/register" method="post" style="display: inline; flex: 1;" 
+					      onsubmit="return confirm('Enable user {{ user.username }}?');">
+						<input type="hidden" name="action" value="enable_user">
+						<input type="hidden" name="user_id" value="{{ user.id }}">
+						<button type="submit" class="btn btn-primary btn-sm" title="Enable User" style="width: 100%;">
+							<i class="fas fa-check"></i>
+							Enable
+						</button>
+					</form>
+				{% else %}
+					{% if user.id != current_user.id %}
+						<form action="/register" method="post" style="display: inline; flex: 1;" 
+						      onsubmit="return confirm('Disable user {{ user.username }}? This will prevent them from logging in.');">
+							<input type="hidden" name="action" value="delete_user">
+							<input type="hidden" name="user_id" value="{{ user.id }}">
+							<button type="submit" class="btn btn-outline btn-sm btn-danger" title="Disable User" style="width: 100%;">
+								<i class="fas fa-ban"></i>
+								Disable
+							</button>
+						</form>
+					{% endif %}
+				{% endif %}
+			</div>
+		</div>
+		{% endfor %}
+	</div>
+	{% else %}
+	<div style="padding: 2rem; text-align: center; color: #a0aec0;">
+		<i class="fas fa-users" style="font-size: 3rem; opacity: 0.3; margin-bottom: 1rem;"></i>
+		<p>No users found.</p>
+	</div>
+	{% endif %}
+	
+	<!-- No Search Results Message -->
+	<div id="noSearchResults" style="display: none; padding: 2rem; text-align: center; color: #a0aec0;">
+		<i class="fas fa-search" style="font-size: 3rem; opacity: 0.3; margin-bottom: 1rem;"></i>
+		<p>No users found matching your search.</p>
+	</div>
+</section>
+
+<!-- Edit User Modal -->
+<div id="editModal" class="modal" style="display: none;">
+	<div class="modal-content">
+		<div class="modal-header">
+			<h2 style="margin: 0; color: #e6eef5;">
+				<i class="fas fa-user-edit"></i>
+				Edit User
+			</h2>
+			<button type="button" class="modal-close" onclick="closeEditModal()" style="background: none; border: none; color: #cfd7df; font-size: 1.5rem; cursor: pointer;">
+				<i class="fas fa-times"></i>
+			</button>
+		</div>
+		<form action="/register" method="post" class="form">
+			<input type="hidden" name="action" value="edit_user">
+			<input type="hidden" name="user_id" id="edit_user_id">
+			<div class="form-section">
+				<div class="form-field">
+					<label class="label">
+						<i class="fas fa-user"></i>
+						Username
+					</label>
+					<input type="text" class="input" id="edit_username" disabled 
+					       style="background: rgba(255,255,255,.03); color: #a0aec0; cursor: not-allowed;">
+					<small style="color: #a0aec0; margin-top: 0.5rem; display: block;">
+						<i class="fas fa-info-circle"></i>
+						Username cannot be changed
+					</small>
+				</div>
+				
+				<div class="form-field">
+					<label class="label" for="edit_password">
+						<i class="fas fa-lock"></i>
+						New Password
+					</label>
+					<input type="password" name="password" id="edit_password" class="input" 
+					       placeholder="Leave empty to keep current password" autocomplete="new-password">
+					<small style="color: #a0aec0; margin-top: 0.5rem; display: block;">
+						<i class="fas fa-info-circle"></i>
+						Only fill this field if you want to change the password
+					</small>
+				</div>
+				
+				<div class="form-field">
+					<label class="label" for="edit_permission">
+						<i class="fas fa-shield-alt"></i>
+						Permission Level
+					</label>
+					<select name="permission" id="edit_permission" class="input" required>
+						<option value="none">NONE - No Access</option>
+						<option value="app">APP - App Access Only</option>
+						<option value="admin">ADMIN - Administrator</option>
+						<option value="all">ALL - Full Access</option>
+					</select>
+				</div>
+				
+				<div class="form-field">
+					<label class="label">
+						<i class="fas fa-toggle-on"></i>
+						Account Status
+					</label>
+					<div style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;">
+						<label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+							<input type="radio" name="disabled" value="false" id="edit_status_active" style="width: auto; height: auto;">
+							<span style="color: #e6eef5;">Active</span>
+						</label>
+						<label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+							<input type="radio" name="disabled" value="true" id="edit_status_disabled" style="width: auto; height: auto;">
+							<span style="color: #e6eef5;">Disabled</span>
+						</label>
+					</div>
+				</div>
+			</div>
+			
+			<div class="form-footer">
+				<button type="submit" class="btn btn-primary">
+					<i class="fas fa-save"></i>
+					Save Changes
+				</button>
+				<button type="button" class="btn btn-outline" onclick="closeEditModal()">
+					<i class="fas fa-times"></i>
+					Cancel
+				</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<style>
+.user-table {
+	margin-top: 1rem;
+}
+
+.user-table tbody tr:hover {
+	background: rgba(255,255,255,.03);
+}
+
+.permission-badge {
+	display: inline-block;
+	padding: 0.35rem 0.75rem;
+	border-radius: 6px;
+	font-size: 0.85rem;
+	font-weight: 600;
+	text-transform: uppercase;
+}
+
+.permission-none {
+	background: rgba(255, 255, 255, 0.1);
+	color: #cfd7df;
+	border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.permission-app {
+	background: rgba(110, 193, 255, 0.15);
+	color: #6ec1ff;
+	border: 1px solid rgba(110, 193, 255, 0.3);
+}
+
+.permission-admin {
+	background: rgba(255, 193, 7, 0.15);
+	color: #ffc107;
+	border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.permission-all {
+	background: rgba(52, 199, 89, 0.15);
+	color: #34c759;
+	border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.status-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.35rem 0.75rem;
+	border-radius: 6px;
+	font-size: 0.85rem;
+	font-weight: 500;
+}
+
+.status-active {
+	background: rgba(52, 199, 89, 0.15);
+	color: #34c759;
+	border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.status-disabled {
+	background: rgba(255, 69, 58, 0.15);
+	color: #ff453a;
+	border: 1px solid rgba(255, 69, 58, 0.3);
+}
+
+.btn-sm {
+	padding: 0.4rem 0.8rem;
+	font-size: 0.875rem;
+	height: auto;
+}
+
+.btn-danger {
+	color: #ff6b6b;
+	border-color: rgba(255, 107, 107, 0.3);
+}
+
+.btn-danger:hover {
+	background: rgba(255, 107, 107, 0.1);
+	border-color: rgba(255, 107, 107, 0.5);
+	color: #ff5252;
+}
+
+.table-container {
+	margin-top: 1rem;
+}
+
+/* Search Bar Styles */
+.search-container {
+	margin-bottom: 1.5rem;
+}
+
+.search-wrapper {
+	position: relative;
+	display: flex;
+	align-items: center;
+	background: rgba(255, 255, 255, 0.05);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 12px;
+	padding: 0.75rem 1rem;
+	transition: all 0.3s ease;
+	gap: 0.5rem;
+}
+
+.search-wrapper:focus-within {
+	border-color: rgba(110, 193, 255, 0.5);
+	box-shadow: 0 0 0 3px rgba(110, 193, 255, 0.1);
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.search-icon {
+	color: #6ec1ff;
+	margin-right: 0.75rem;
+	font-size: 1rem;
+	flex-shrink: 0;
+}
+
+.search-input {
+	flex: 1;
+	background: transparent;
+	border: none;
+	outline: none;
+	color: #e6eef5;
+	font-size: 0.95rem;
+	padding: 0;
+	width: 100%;
+}
+
+.search-input::placeholder {
+	color: #a0aec0;
+}
+
+.search-clear {
+	background: none;
+	border: none;
+	color: #a0aec0;
+	cursor: pointer;
+	padding: 0.25rem 0.5rem;
+	margin-left: 0.5rem;
+	border-radius: 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.2s ease;
+	flex-shrink: 0;
+	font-size: 0.875rem;
+}
+
+.search-clear:hover {
+	background: rgba(255, 255, 255, 0.1);
+	color: #e6eef5;
+}
+
+.search-results-info {
+	margin-top: 0.75rem;
+	padding: 0.5rem 1rem;
+	background: rgba(110, 193, 255, 0.1);
+	border: 1px solid rgba(110, 193, 255, 0.2);
+	border-radius: 8px;
+	color: #6ec1ff;
+	font-size: 0.875rem;
+}
+
+.user-row.hidden {
+	display: none !important;
+}
+
+/* Modal Styles */
+.modal {
+	position: fixed;
+	z-index: 2000;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	overflow: auto;
+	background-color: rgba(0, 0, 0, 0.7);
+	backdrop-filter: blur(4px);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.modal-content {
+	background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+	border: 1px solid rgba(255,255,255,.12);
+	border-radius: 16px;
+	padding: 2rem;
+	width: 90%;
+	max-width: 600px;
+	max-height: 90vh;
+	overflow-y: auto;
+	box-shadow: 0 20px 40px rgba(0,0,0,.3);
+}
+
+.modal-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 1.5rem;
+	padding-bottom: 1rem;
+	border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.modal-close:hover {
+	color: #ffffff;
+}
+
+.form-field {
+	margin-bottom: 1.5rem;
+}
+
+input[type="radio"] {
+	width: 18px;
+	height: 18px;
+	cursor: pointer;
+	accent-color: #6ec1ff;
+}
+
+/* Select Dropdown Dark Theme Styling */
+select.input,
+select.form-input {
+	background-color: rgba(255, 255, 255, 0.05) !important;
+	color: #e6eef5 !important;
+	border: 1px solid rgba(255, 255, 255, 0.12) !important;
+	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236ec1ff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 0.75rem center;
+	background-size: 12px;
+	padding-right: 2.5rem !important;
+}
+
+select.input:focus,
+select.form-input:focus {
+	outline: none;
+	border-color: rgba(110, 193, 255, 0.5) !important;
+	box-shadow: 0 0 0 3px rgba(110, 193, 255, 0.1) !important;
+}
+
+select.input option,
+select.form-input option {
+	background-color: #1a1f2e !important;
+	color: #e6eef5 !important;
+	padding: 0.75rem;
+}
+
+select.input option:hover,
+select.input option:checked,
+select.form-input option:hover,
+select.form-input option:checked {
+	background-color: rgba(110, 193, 255, 0.2) !important;
+	color: #6ec1ff !important;
+}
+
+/* For browsers that support styling select options */
+select.input option:disabled,
+select.form-input option:disabled {
+	color: #a0aec0 !important;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+	/* Page Header */
+	.page-header {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 1rem;
+		padding: 1rem 0;
+	}
+	
+	.page-title {
+		font-size: 1.5rem;
+	}
+	
+	.page-actions {
+		width: 100%;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+	
+	.page-actions .btn {
+		width: 100%;
+		justify-content: center;
+	}
+	
+	/* Form Grid - Stack on mobile */
+	.form-grid {
+		grid-template-columns: 1fr !important;
+		gap: 1rem;
+	}
+	
+	/* Table - Convert to cards on mobile */
+	.table-container {
+		overflow-x: visible;
+	}
+	
+	.user-table {
+		display: none; /* Hide table on mobile */
+	}
+	
+	/* User Cards for Mobile */
+	.user-cards-mobile {
+		display: block;
+	}
+	
+	.user-card {
+		background: rgba(255,255,255,.04);
+		border: 1px solid rgba(255,255,255,.08);
+		border-radius: 12px;
+		padding: 1rem;
+		margin-bottom: 1rem;
+	}
+	
+	.user-card-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 0.75rem;
+		padding-bottom: 0.75rem;
+		border-bottom: 1px solid rgba(255,255,255,.08);
+	}
+	
+	.user-card-username {
+		font-size: 1.1rem;
+		font-weight: 600;
+		color: #e6eef5;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	
+	.user-card-id {
+		font-size: 0.85rem;
+		color: #a0aec0;
+	}
+	
+	.user-card-body {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+	
+	.user-card-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+	
+	.user-card-label {
+		font-size: 0.875rem;
+		color: #a0aec0;
+	}
+	
+	.user-card-actions {
+		display: flex;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+		flex-wrap: wrap;
+	}
+	
+	.user-card-actions .btn {
+		flex: 1;
+		min-width: 100px;
+	}
+	
+	.modal-content {
+		width: 95%;
+		padding: 1.5rem;
+		max-height: 85vh;
+	}
+	
+	.modal-header h2 {
+		font-size: 1.25rem;
+	}
+	
+	.form-footer {
+		flex-direction: column;
+	}
+	
+	.form-footer .btn {
+		width: 100%;
+	}
+	
+	.search-wrapper {
+		padding: 0.625rem 0.875rem;
+	}
+	
+	.search-input {
+		font-size: 0.875rem;
+	}
+	
+	.search-results-info {
+		font-size: 0.8rem;
+		padding: 0.4rem 0.75rem;
+	}
+}
+
+/* Desktop - Show table, hide cards */
+@media (min-width: 769px) {
+	.user-cards-mobile {
+		display: none;
+	}
+	
+	.user-table {
+		display: table;
+	}
+}
+
+/* Small Mobile Devices */
+@media (max-width: 480px) {
+	.page-title {
+		font-size: 1.25rem;
+	}
+	
+	.card {
+		padding: 1rem;
+	}
+	
+	.card-header {
+		margin-bottom: 1rem;
+	}
+	
+	.card-title {
+		font-size: 1.1rem;
+	}
+	
+	.user-card {
+		padding: 0.75rem;
+	}
+	
+	.user-card-actions {
+		flex-direction: column;
+	}
+	
+	.user-card-actions .btn {
+		width: 100%;
+	}
+	
+	.modal-content {
+		width: 98%;
+		padding: 1rem;
+	}
+	
+	.form-field {
+		margin-bottom: 1rem;
+	}
+}
+</style>
+
+<script>
+function openEditModal(userId, username, permission, disabled) {
+	document.getElementById('edit_user_id').value = userId;
+	document.getElementById('edit_username').value = username;
+	document.getElementById('edit_permission').value = permission.toLowerCase();
+	document.getElementById('edit_password').value = '';
+	
+	if (disabled === 'true' || disabled === true) {
+		document.getElementById('edit_status_disabled').checked = true;
+	} else {
+		document.getElementById('edit_status_active').checked = true;
+	}
+	
+	document.getElementById('editModal').style.display = 'flex';
+}
+
+function closeEditModal() {
+	document.getElementById('editModal').style.display = 'none';
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+	const modal = document.getElementById('editModal');
+	if (event.target == modal) {
+		closeEditModal();
+	}
+}
+
+// User Search Functionality
+document.addEventListener('DOMContentLoaded', function() {
+	const searchInput = document.getElementById('userSearch');
+	const clearSearchBtn = document.getElementById('clearSearch');
+	const searchResultsInfo = document.getElementById('searchResultsInfo');
+	const searchResultsText = document.getElementById('searchResultsText');
+	const noSearchResults = document.getElementById('noSearchResults');
+	
+	if (!searchInput) return;
+	
+	// Get all user rows (both table rows and card divs)
+	const userRows = document.querySelectorAll('.user-row');
+	const totalUsers = userRows.length;
+	
+	function performSearch() {
+		const searchTerm = searchInput.value.toLowerCase().trim();
+		
+		// Show/hide clear button
+		if (searchTerm.length > 0) {
+			clearSearchBtn.style.display = 'flex';
+		} else {
+			clearSearchBtn.style.display = 'none';
+		}
+		
+		// Filter users
+		let visibleCount = 0;
+		
+		userRows.forEach(function(row) {
+			const username = row.getAttribute('data-username') || '';
+			const userId = row.getAttribute('data-id') || '';
+			const permission = row.getAttribute('data-permission') || '';
+			const status = row.getAttribute('data-status') || '';
+			
+			// Check if search term matches any field
+			const matches = searchTerm === '' || 
+				username.includes(searchTerm) ||
+				userId.includes(searchTerm) ||
+				permission.includes(searchTerm) ||
+				status.includes(searchTerm);
+			
+			if (matches) {
+				row.classList.remove('hidden');
+				visibleCount++;
+			} else {
+				row.classList.add('hidden');
+			}
+		});
+		
+		// Show/hide search results info
+		if (searchTerm.length > 0) {
+			searchResultsInfo.style.display = 'block';
+			searchResultsText.textContent = `Found ${visibleCount} of ${totalUsers} users`;
+			
+			// Show/hide no results message
+			if (visibleCount === 0) {
+				noSearchResults.style.display = 'block';
+				document.getElementById('userTableContainer')?.style.setProperty('display', 'none');
+				document.getElementById('userCardsContainer')?.style.setProperty('display', 'none');
+			} else {
+				noSearchResults.style.display = 'none';
+				document.getElementById('userTableContainer')?.style.removeProperty('display');
+				document.getElementById('userCardsContainer')?.style.removeProperty('display');
+			}
+		} else {
+			searchResultsInfo.style.display = 'none';
+			noSearchResults.style.display = 'none';
+			document.getElementById('userTableContainer')?.style.removeProperty('display');
+			document.getElementById('userCardsContainer')?.style.removeProperty('display');
+		}
+	}
+	
+	// Search input event listener
+	searchInput.addEventListener('input', performSearch);
+	
+	// Clear search button
+	clearSearchBtn.addEventListener('click', function() {
+		searchInput.value = '';
+		performSearch();
+		searchInput.focus();
+	});
+	
+	// Keyboard shortcuts
+	searchInput.addEventListener('keydown', function(e) {
+		// Escape key to clear search
+		if (e.key === 'Escape') {
+			searchInput.value = '';
+			performSearch();
+		}
+	});
+});
+</script>
+
+{% endblock %}
+

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Edit User{% endblock %}
+{% block content %}
+
+<section class="page-header">
+	<h1 class="page-title">
+		<i class="fas fa-user-edit"></i>
+		Edit User: {{ user.username }}
+	</h1>
+	<div class="page-actions">
+		<a href="/user_management" class="btn btn-outline">
+			<i class="fas fa-arrow-left"></i>
+			Back to User Management
+		</a>
+	</div>
+</section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+	{% if messages %}
+		{% for category, message in messages %}
+			<div class="notice {{ 'success' if category == 'success' else 'danger' }}">
+				<i class="fas {{ 'fa-check-circle' if category == 'success' else 'fa-exclamation-triangle' }}"></i>
+				<span>{{ message }}</span>
+			</div>
+		{% endfor %}
+	{% endif %}
+{% endwith %}
+
+<section class="card form-card">
+	<div class="card-header">
+		<h3 class="card-title">
+			<i class="fas fa-user-cog"></i>
+			User Information
+		</h3>
+	</div>
+	
+	<form action="/user_management/edit/{{ user.id }}" method="post" class="form">
+		<div class="form-section">
+			<div class="form-field">
+				<label class="label">
+					<i class="fas fa-user"></i>
+					Username
+				</label>
+				<input type="text" class="input" value="{{ user.username }}" disabled 
+				       style="background: rgba(255,255,255,.03); color: #a0aec0; cursor: not-allowed;">
+				<small style="color: #a0aec0; margin-top: 0.5rem; display: block;">
+					<i class="fas fa-info-circle"></i>
+					Username cannot be changed
+				</small>
+			</div>
+			
+			<div class="form-field">
+				<label class="label" for="password">
+					<i class="fas fa-lock"></i>
+					New Password
+				</label>
+				<input type="password" name="password" id="password" class="input" 
+				       placeholder="Leave empty to keep current password" autocomplete="new-password">
+				<small style="color: #a0aec0; margin-top: 0.5rem; display: block;">
+					<i class="fas fa-info-circle"></i>
+					Only fill this field if you want to change the password
+				</small>
+			</div>
+			
+			<div class="form-field">
+				<label class="label" for="permission">
+					<i class="fas fa-shield-alt"></i>
+					Permission Level
+				</label>
+				<select name="permission" id="permission" class="input" required>
+					<option value="none" {% if user.permission.value == 'none' %}selected{% endif %}>NONE - No Access</option>
+					<option value="app" {% if user.permission.value == 'app' %}selected{% endif %}>APP - App Access Only</option>
+					<option value="admin" {% if user.permission.value == 'admin' %}selected{% endif %}>ADMIN - Administrator</option>
+					<option value="all" {% if user.permission.value == 'all' %}selected{% endif %}>ALL - Full Access</option>
+				</select>
+				<small style="color: #a0aec0; margin-top: 0.5rem; display: block;">
+					<i class="fas fa-info-circle"></i>
+					Permission levels: NONE (no access), APP (create cases only), ADMIN (manage cases), ALL (full access including user management)
+				</small>
+			</div>
+			
+			<div class="form-field">
+				<label class="label" for="disabled">
+					<i class="fas fa-toggle-on"></i>
+					Account Status
+				</label>
+				<div style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;">
+					<label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+						<input type="radio" name="disabled" value="false" 
+						       {% if not user.disabled %}checked{% endif %} 
+						       style="width: auto; height: auto;">
+						<span style="color: #e6eef5;">Active</span>
+					</label>
+					<label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+						<input type="radio" name="disabled" value="true" 
+						       {% if user.disabled %}checked{% endif %} 
+						       style="width: auto; height: auto;">
+						<span style="color: #e6eef5;">Disabled</span>
+					</label>
+				</div>
+				<small style="color: #a0aec0; margin-top: 0.5rem; display: block;">
+					<i class="fas fa-info-circle"></i>
+					Disabled users cannot log in
+				</small>
+			</div>
+		</div>
+		
+		<div class="form-footer">
+			<button type="submit" class="btn btn-primary">
+				<i class="fas fa-save"></i>
+				Save Changes
+			</button>
+			<a href="/user_management" class="btn btn-outline">
+				<i class="fas fa-times"></i>
+				Cancel
+			</a>
+		</div>
+	</form>
+</section>
+
+<style>
+.form-field {
+	margin-bottom: 1.5rem;
+}
+
+input[type="radio"] {
+	width: 18px;
+	height: 18px;
+	cursor: pointer;
+	accent-color: #6ec1ff;
+}
+
+.form-footer {
+	border-top: 1px solid rgba(255,255,255,.08);
+	padding-top: 1.5rem;
+	margin-top: 1rem;
+	display: flex;
+	gap: 1rem;
+}
+
+@media (max-width: 768px) {
+	.form-footer {
+		flex-direction: column;
+	}
+	
+	.form-footer .btn {
+		width: 100%;
+	}
+}
+</style>
+
+{% endblock %}
+

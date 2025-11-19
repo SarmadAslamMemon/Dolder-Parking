@@ -34,7 +34,7 @@
 					   autocomplete="off"
 					   inputmode="numeric">
 				<small style="color: #a0aec0; margin-top: 0.25rem; display: block; font-size: 0.85rem;">
-					<i class="fas fa-info-circle"></i> Wird automatisch erkannt, wenn ein Bild hochgeladen wird
+					<i class="fas fa-info-circle"></i> Bitte manuell eingeben. Wird nach dem ersten Eintrag automatisch hochgezählt.
 				</small>
 			</div>
 			<div class="search-actions">
@@ -120,10 +120,10 @@
 					<i class="fas fa-images"></i>
 					Galerie
 				</button>
-				<small style="color: #a0aec0; text-align: center; width: 100%; font-size: 0.8rem; margin-top: 0.25rem;">
-					<i class="fas fa-info-circle"></i> Max. Dateigröße: 1MB
-				</small>
 			</div>
+			<small style="color: #a0aec0; text-align: center; width: 100%; font-size: 0.8rem; margin-top: 0.25rem;">
+				<i class="fas fa-info-circle"></i> Max. Dateigröße: 10MB
+			</small>
 			
 			<!-- Save/Delete buttons - show when image is uploaded, regardless of case existence -->
 			<div id="saveDeleteButtonsContainer" style="display: none;">
@@ -132,9 +132,9 @@
 						<i class="fas fa-save"></i>
 						Speichern
 					</button>
-					<button type="button" onclick="deleteImage(event)" class="btn btn-outline full">
+					<button type="button" onclick="deleteImage(event)" id="deleteButton" class="btn btn-danger full">
 						<i class="fas fa-trash"></i>
-						Löschen
+						Bild löschen
 					</button>
 			</div>
 		</div>
@@ -316,6 +316,30 @@
 		font-size: 0.9rem;
 	}
 	
+	/* Save/Delete buttons container on mobile */
+	#saveDeleteButtonsContainer {
+		display: block !important;
+		width: 100%;
+	}
+	
+	.save-delete-buttons {
+		display: flex !important;
+		gap: 0.5rem;
+		width: 100%;
+	}
+	
+	.save-delete-buttons .btn {
+		flex: 1;
+		height: 44px;
+		font-size: 0.85rem;
+	}
+	
+	/* Delete button mobile styling */
+	.btn-danger {
+		font-size: 0.85rem;
+		padding: 0.6rem 0.75rem;
+	}
+	
 	/* Hide desktop text on buttons */
 	.desktop-text {
 		display: none !important;
@@ -354,6 +378,20 @@
 	align-items: center;
 	gap: 0.5rem;
 	font-size: 0.9rem;
+}
+
+/* Delete button styling */
+.btn-danger {
+	background: rgba(239, 68, 68, 0.15);
+	color: #ef4444;
+	border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:hover {
+	background: rgba(239, 68, 68, 0.25);
+	border-color: rgba(239, 68, 68, 0.5);
+	color: #f87171;
+	transform: translateY(-1px);
 }
 
 .notice.info {
@@ -477,6 +515,31 @@
 		font-size: 0.8rem;
 		display: flex !important;
 		visibility: visible !important;
+	}
+	
+	/* Save/Delete buttons on small mobile */
+	#saveDeleteButtonsContainer {
+		display: block !important;
+		width: 100%;
+	}
+	
+	.save-delete-buttons {
+		display: flex !important;
+		gap: 0.5rem;
+		width: 100%;
+		flex-direction: column;
+	}
+	
+	.save-delete-buttons .btn {
+		width: 100%;
+		height: 40px;
+		font-size: 0.8rem;
+	}
+	
+	/* Delete button small mobile styling */
+	.btn-danger {
+		font-size: 0.8rem;
+		padding: 0.5rem;
 	}
 }
 </style>
@@ -628,12 +691,12 @@ function updateImagePreview(input) {
     
     if (input.files && input.files[0]) {
         console.log('File selected:', input.files[0].name, 'Size:', input.files[0].size);
-        // Check file size (max 1MB)
+        // Check file size (max 10MB for phone photos)
         const file = input.files[0];
-        const maxSize = 1 * 1024 * 1024; // 1MB in bytes
+        const maxSize = 10 * 1024 * 1024; // 10MB in bytes
         
         if (file.size > maxSize) {
-            alert('Das Bild ist zu groß. Bitte wählen Sie ein Bild kleiner als 1MB.');
+            alert('Das Bild ist zu groß. Bitte wählen Sie ein Bild kleiner als 10MB.');
             input.value = ''; // Clear the input
             return;
         }
@@ -750,27 +813,13 @@ async function autoExtractPlateNumber() {
         }
         
         if (plateNumber && plateNumber !== 'NO VALID GERMAN PLATE DETECTED') {
-            // Extract just the number part from plate (e.g., "B-MA 1234" -> "1234")
-            const numberMatch = plateNumber.match(/(\d+)/);
-            if (numberMatch) {
-                numberInput.value = numberMatch[1];
-                console.log('Filled number:', numberMatch[1]);
-                
-                // Trigger "Gehe zu" action to check if number is available
-                // This will update the status message and set session
-                checkNumberStatus(numberMatch[1]);
-            } else {
-                // If no number found, use the full plate
-                numberInput.value = plateNumber.replace(/[^0-9]/g, '');
-                console.log('Filled number (extracted):', numberInput.value);
-                if (numberInput.value) {
-                    checkNumberStatus(numberInput.value);
-                }
-            }
+            // Store the full license plate for saving to db_nummerschild
+            // DO NOT fill Bussennummer - it should be entered manually
+            // The license plate will be saved to db_nummerschild when saving the case
             
-            // Show success message briefly
+            // Show success message
             hideLoadingMessage(loadingMessage);
-            showTemporaryMessage('Kennzeichen erkannt: ' + plateNumber, 'success');
+            showTemporaryMessage('Kennzeichen erkannt: ' + plateNumber + ' (wird beim Speichern zu Nummernschild hinzugefügt)', 'success');
         } else {
             // No plate detected - show info message
             console.log('No valid plate detected');
@@ -1214,17 +1263,8 @@ async function saveCase(event) {
         console.log('No image selected, proceeding with save (text only)...');
     }
     
-    // Show confirmation popup
-    const numberValue = numberInput ? numberInput.value : '';
-    const confirmMessage = numberValue 
-        ? `Möchten Sie Fall ${numberValue} wirklich speichern?`
-        : 'Möchten Sie diesen Fall wirklich speichern?';
-    
-    if (!confirm(confirmMessage)) {
-        return false;
-    }
-    
     // Disable button and show loading
+    const numberValue = numberInput ? numberInput.value : '';
     const originalText = saveButton.innerHTML;
     saveButton.disabled = true;
     saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird gespeichert...';
@@ -1286,33 +1326,98 @@ async function saveCase(event) {
                 console.log('  - Image saved:', data.image_saved ? 'Yes' : 'No');
                 showTemporaryMessage(successMsg, 'success');
                 
-                // Clear input field
-                if (numberInput) {
-                    numberInput.value = '';
+                // Remove the "number is free" status message
+                const numberStatus = document.getElementById('numberStatus');
+                if (numberStatus) {
+                    numberStatus.style.animation = 'fadeOut 0.3s';
+                    setTimeout(() => {
+                        if (numberStatus.parentNode) {
+                            numberStatus.remove();
+                        }
+                    }, 300);
                 }
                 
-                // Clear detected plate number
+                // Auto-increment: Set nextnum to next available number
+                if (data.next_number) {
+                    // Use the next_number from server response
+                    if (numberInput) {
+                        numberInput.value = data.next_number;
+                    }
+                } else if (data.case_number) {
+                    // Fallback: calculate next number (current + 1)
+                    const nextNumber = parseInt(data.case_number) + 1;
+                    if (numberInput) {
+                        numberInput.value = nextNumber;
+                    }
+                } else {
+                    // Clear input field if no case number
+                    if (numberInput) {
+                        numberInput.value = '';
+                    }
+                }
+                
+                // Clear detected plate number (it's already saved to db_nummerschild)
                 window.detectedPlateNumber = null;
                 
-                // Clear image
-                clearUploadedImage();
-                selectedFile = null;
-                
-                // Hide save/delete buttons
-                const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
-                if (saveDeleteContainer) {
-                    saveDeleteContainer.style.display = 'none';
+                // Keep image visible if it was saved, otherwise clear it
+                if (data.image_saved && data.case_number) {
+                    // Update image to show the saved image
+                    const imageFrame = document.querySelector('.image-frame');
+                    const existingPreview = document.getElementById('imagePreview');
+                    const noImage = document.getElementById('noImage');
+                    
+                    // Construct the saved image path
+                    const savedImagePath = `/static/carpics/${data.case_number}.png`;
+                    
+                    if (existingPreview) {
+                        // Update existing image
+                        existingPreview.src = savedImagePath;
+                        existingPreview.alt = 'Gespeichertes Bild';
+                    } else if (imageFrame) {
+                        // Create new image element
+                        if (noImage) noImage.remove();
+                        
+                        const img = document.createElement('img');
+                        img.id = 'imagePreview';
+                        img.className = 'case-thumbnail';
+                        img.src = savedImagePath;
+                        img.alt = 'Gespeichertes Bild';
+                        imageFrame.appendChild(img);
+                    }
+                    
+                    // Keep save/delete buttons visible for the saved image
+                    const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+                    if (saveDeleteContainer) {
+                        saveDeleteContainer.style.display = 'block';
+                    }
+                    
+                    // Mark as uploaded (image is saved on server)
+                    imageUploaded = true;
+                    sessionStorage.setItem('imageWasUploaded', 'true');
+                } else {
+                    // No image was saved, clear everything
+                    clearUploadedImage();
+                    selectedFile = null;
+                    
+                    // Hide save/delete buttons
+                    const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+                    if (saveDeleteContainer) {
+                        saveDeleteContainer.style.display = 'none';
+                    }
+                    
+                    // Reset upload state
+                    imageUploaded = false;
+                    sessionStorage.removeItem('imageWasUploaded');
                 }
                 
-                // Reset upload state
-                imageUploaded = false;
-                sessionStorage.removeItem('imageWasUploaded');
-                
-                // Clear file inputs
+                // Clear file inputs (but keep image visible if saved)
                 const cameraInput = document.getElementById('cameraInput');
                 const galleryInput = document.getElementById('galleryInput');
                 if (cameraInput) cameraInput.value = '';
                 if (galleryInput) galleryInput.value = '';
+                
+                // Clear selectedFile since it's now saved
+                selectedFile = null;
             } else {
                 // Error response
                 showTemporaryMessage(data.error || 'Fehler beim Speichern', 'danger');
@@ -1322,11 +1427,45 @@ async function saveCase(event) {
             const html = await response.text();
             if (response.ok) {
                 showTemporaryMessage('Fall erfolgreich gespeichert!', 'success');
-                // Clear form
+                
+                // Remove the "number is free" status message
+                const numberStatus = document.getElementById('numberStatus');
+                if (numberStatus) {
+                    numberStatus.style.animation = 'fadeOut 0.3s';
+                    setTimeout(() => {
+                        if (numberStatus.parentNode) {
+                            numberStatus.remove();
+                        }
+                    }, 300);
+                }
+                
+                // Clear form input
                 if (numberInput) numberInput.value = '';
-                clearUploadedImage();
+                
+                // Try to extract case number from response or keep current image
+                // If image exists, keep it visible
+                const existingPreview = document.getElementById('imagePreview');
+                if (existingPreview && existingPreview.src && !existingPreview.src.includes('no-image-available.jpg')) {
+                    // Image exists, keep it visible
+                    const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+                    if (saveDeleteContainer) {
+                        saveDeleteContainer.style.display = 'block';
+                    }
+                    imageUploaded = true;
+                    sessionStorage.setItem('imageWasUploaded', 'true');
+                } else {
+                    // No image, clear everything
+                    clearUploadedImage();
+                    imageUploaded = false;
+                    sessionStorage.removeItem('imageWasUploaded');
+                    
+                    const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+                    if (saveDeleteContainer) {
+                        saveDeleteContainer.style.display = 'none';
+                    }
+                }
+                
                 selectedFile = null;
-                imageUploaded = false;
             } else {
                 showTemporaryMessage('Fehler beim Speichern', 'danger');
             }
@@ -1385,14 +1524,12 @@ async function deleteImage(event) {
             clearUploadedImage();
             selectedFile = null;
             
-            // Hide save/delete buttons
-            const saveDeleteDiv = document.querySelector('.save-delete-buttons');
-            if (saveDeleteDiv) {
-                saveDeleteDiv.style.animation = 'fadeOut 0.3s';
+            // Hide save/delete buttons container
+            const saveDeleteContainer = document.getElementById('saveDeleteButtonsContainer');
+            if (saveDeleteContainer) {
+                saveDeleteContainer.style.animation = 'fadeOut 0.3s';
                 setTimeout(() => {
-                    if (saveDeleteDiv.parentNode) {
-                        saveDeleteDiv.remove();
-                    }
+                    saveDeleteContainer.style.display = 'none';
                 }, 300);
             }
             

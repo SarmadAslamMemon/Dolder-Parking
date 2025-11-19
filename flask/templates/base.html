@@ -61,7 +61,10 @@
 					{% set active_logo = get_active_logo_path() %}
 					{% set logo_width = get_logo_width() %}
 					{% set logo_height = get_logo_height() %}
-					<img src="{{ url_for('static', filename=active_logo) }}" alt="Dolder Parking Logo" class="brand-logo" style="width: {{ logo_width }}; height: {{ logo_height }};">
+					<img src="{{ url_for('static', filename=active_logo) }}" alt="Logo" class="brand-logo" style="{% if logo_width != 'auto' %}width: {{ logo_width }};{% endif %} {% if logo_height != 'auto' %}height: {{ logo_height }};{% endif %}" onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+					<div class="brand-logo-placeholder" style="display: none; {% if logo_width != 'auto' %}width: {{ logo_width }};{% endif %} {% if logo_height != 'auto' %}height: {{ logo_height }};{% endif %} align-items: center; justify-content: center; background: rgba(110, 193, 255, 0.1); border: 1px solid rgba(110, 193, 255, 0.3); border-radius: 8px;">
+						<i class="fas fa-image" style="color: #6ec1ff; font-size: 1.5rem;"></i>
+					</div>
 				</a>
 				<nav class="nav-links">
 					{% if current_user.is_authenticated %}

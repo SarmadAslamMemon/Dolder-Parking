@@ -176,18 +176,60 @@ def register_logo_routes(app, db):
                         if ext.lower() in ['.png', '.jpg', '.jpeg', '.gif', '.webp']:
                             try:
                                 img = Image.open(filepath)
+                                
                                 # Resize if too large (max 500px width/height)
                                 max_size = 500
                                 if img.width > max_size or img.height > max_size:
                                     img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
                                 
-                                # Save the optimized image
+                                # Save the optimized image with proper format
                                 if ext.lower() in ['.jpg', '.jpeg']:
+                                    # Convert RGBA/LA/P to RGB for JPEG (JPEG doesn't support transparency)
+                                    if img.mode in ('RGBA', 'LA', 'P'):
+                                        if img.mode == 'P':
+                                            img = img.convert('RGBA')
+                                        background = Image.new('RGB', img.size, (255, 255, 255))
+                                        if img.mode == 'RGBA':
+                                            background.paste(img, mask=img.split()[-1])
+                                        else:
+                                            background.paste(img)
+                                        img = background
                                     img.save(filepath, 'JPEG', optimize=True, quality=85)
+                                elif ext.lower() == '.png':
+                                    # Preserve transparency for PNG files
+                                    # Convert palette mode with transparency to RGBA if needed
+                                    if img.mode == 'P':
+                                        # Check if palette has transparency
+                                        if 'transparency' in img.info:
+                                            img = img.convert('RGBA')
+                                        else:
+                                            img = img.convert('RGB')
+                                    # Keep RGBA mode for transparency, convert RGB to RGB
+                                    elif img.mode == 'LA':
+                                        img = img.convert('RGBA')
+                                    elif img.mode not in ('RGBA', 'RGB'):
+                                        img = img.convert('RGB')
+                                    # Save PNG with proper format
+                                    img.save(filepath, 'PNG', optimize=True)
+                                elif ext.lower() == '.gif':
+                                    # Preserve GIF mode
+                                    if img.mode not in ('P', 'RGB', 'RGBA'):
+                                        img = img.convert('RGB')
+                                    img.save(filepath, 'GIF', optimize=True)
+                                elif ext.lower() == '.webp':
+                                    # WebP supports transparency
+                                    save_kwargs = {'format': 'WEBP', 'quality': 85}
+                                    if img.mode in ('RGBA', 'LA', 'P'):
+                                        if img.mode == 'P':
+                                            img = img.convert('RGBA')
+                                        save_kwargs['lossless'] = False
+                                    elif img.mode not in ('RGB', 'RGBA'):
+                                        img = img.convert('RGB')
+                                    img.save(filepath, **save_kwargs)
                                 else:
-                                    img.save(filepath, optimize=True, quality=85)
+                                    img.save(filepath, optimize=True)
                                 
-                                print(f"Logo optimized: {img.size[0]}x{img.size[1]}")
+                                print(f"Logo optimized: {img.size[0]}x{img.size[1]} ({ext.lower()})")
                             except Exception as img_error:
                                 print(f"Warning: Could not optimize image: {img_error}")
                                 import traceback

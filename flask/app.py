@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from flask import Flask, render_template, request, url_for, redirect, session, send_file, jsonify
+from flask import Flask, render_template, request, url_for, redirect, session, send_file, jsonify, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, logout_user, current_user
 from flask_bcrypt import Bcrypt
@@ -163,6 +163,22 @@ def s_app():
         wrongFile = False
         alreadySaved = False
         saveError = None
+        
+        # On GET (page load), show the next available number for auto-increment
+        # This allows the user to see what the next number will be
+        if session.get("nextnum") is not None:
+            nextnum = session["nextnum"]
+        else:
+            # If no nextnum in session, get the highest number + 1
+            try:
+                last_busse = models.Busse.query.order_by(models.Busse.db_bussennr.desc()).first()
+                if last_busse:
+                    nextnum = last_busse.db_bussennr + 1
+                    session["nextnum"] = nextnum
+                else:
+                    nextnum = None  # First case, user enters manually
+            except:
+                nextnum = None
     
     #intial picture to show
     htmlpath = os.path.join(app.config['NO_IMAGE'], 'no-image-available.jpg')
@@ -584,8 +600,24 @@ def s_app():
                         
                         htmlpath = os.path.join(app.config['UPLOAD_FOLDER'], str(case_number) + ".png")
                         
-                        # Clear session after saving to reset page to initial state
+                        # After saving, set nextnum to the next available number for auto-increment
+                        # Get the highest busse number and set it as the next number
+                        try:
+                            last_busse = models.Busse.query.order_by(models.Busse.db_bussennr.desc()).first()
+                            if last_busse:
+                                next_available = last_busse.db_bussennr + 1
+                            else:
+                                next_available = 1
+                            session["nextnum"] = next_available
+                            print(f"[SAVE] Set nextnum for auto-increment: {next_available}")
+                        except:
+                            session["nextnum"] = case_number + 1
+                        
+                        # Clear session actnum after saving to reset page to initial state
                         session["actnum"] = None
+                        
+                        # Calculate next number for auto-increment
+                        next_number = case_number + 1
                         
                         # Return JSON success for AJAX requests
                         if is_ajax:
@@ -593,6 +625,7 @@ def s_app():
                                 "success": True, 
                                 "message": f"Fall {case_number} erfolgreich gespeichert!",
                                 "case_number": case_number,
+                                "next_number": next_number,
                                 "license_plate": license_plate,
                                 "image_saved": image_exists
                             }), 200
@@ -886,24 +919,148 @@ def logout():
 @app.route('/register', methods=["GET", "POST"])
 def register():
     # check if the users is allowed to create users or not
-    if not session.get("name") == "chefstrangetec":
+    if not session.get("name") == "admin":
         # if not there in the session then redirect to the login page
         return redirect("/login")
 
-    # If the user made a POST request, create a new user
+    # Handle POST requests
     if request.method == "POST":
-        user = models.Users(username=request.form.get("username"),
-                    password=bcrypt.generate_password_hash(request.form.get("password")).decode('utf-8'),
-                    permission=request.form.get("permission"),)
-        # Add the user to the database
-        db.session.add(user)
-        # Commit the changes made
-        db.session.commit()
-        # Once user account created, redirect them
-        # to login route (created later on)
-        return redirect(url_for("login"))
-    # Renders sign_up template if user made a GET request
-    return render_template("sign_up.html")
+        # Check if this is a user creation request
+        if request.form.get("action") == "create_user":
+            try:
+                username = request.form.get("username", "").strip()
+                password = request.form.get("password", "").strip()
+                permission = request.form.get("permission", "").strip()
+                
+                # Validate inputs
+                if not username:
+                    flash("Username is required.", "error")
+                    return redirect("/register")
+                if not password:
+                    flash("Password is required.", "error")
+                    return redirect("/register")
+                if not permission:
+                    flash("Permission level is required.", "error")
+                    return redirect("/register")
+                
+                # Check if username already exists
+                existing_user = models.Users.query.filter_by(username=username).first()
+                if existing_user:
+                    flash(f"Username '{username}' already exists.", "error")
+                    return redirect("/register")
+                
+                # Create new user
+                user = models.Users(
+                    username=username,
+                    password=bcrypt.generate_password_hash(password).decode('utf-8'),
+                    permission=models.UserPermission[permission.upper()] if permission.upper() in ['NONE', 'APP', 'ADMIN', 'ALL'] else models.UserPermission.NONE
+                )
+                db.session.add(user)
+                db.session.commit()
+                flash(f"User '{username}' created successfully.", "success")
+                return redirect("/register")
+            except Exception as e:
+                db.session.rollback()
+                print(f"Error creating user: {e}")
+                flash(f"Error creating user: {str(e)}", "error")
+                return redirect("/register")
+        
+        # Check if this is a user edit request
+        elif request.form.get("action") == "edit_user":
+            try:
+                user_id = request.form.get("user_id")
+                if not user_id:
+                    flash("User ID is required.", "error")
+                    return redirect("/register")
+                
+                user = models.Users.query.get(int(user_id))
+                if not user:
+                    flash("User not found.", "error")
+                    return redirect("/register")
+                
+                # Update password if provided
+                new_password = request.form.get("password", "").strip()
+                if new_password:
+                    user.password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+                
+                # Update permission if provided
+                new_permission = request.form.get("permission", "").strip()
+                if new_permission and new_permission.upper() in ['NONE', 'APP', 'ADMIN', 'ALL']:
+                    user.permission = models.UserPermission[new_permission.upper()]
+                
+                # Update disabled status
+                disabled = request.form.get("disabled") == "true"
+                user.disabled = disabled
+                
+                db.session.commit()
+                flash(f"User '{user.username}' updated successfully.", "success")
+                return redirect("/register")
+            except Exception as e:
+                db.session.rollback()
+                print(f"Error updating user: {e}")
+                flash(f"Error updating user: {str(e)}", "error")
+                return redirect("/register")
+        
+        # Check if this is a delete/disable request
+        elif request.form.get("action") == "delete_user":
+            try:
+                user_id = request.form.get("user_id")
+                if not user_id:
+                    flash("User ID is required.", "error")
+                    return redirect("/register")
+                
+                user = models.Users.query.get(int(user_id))
+                if not user:
+                    flash("User not found.", "error")
+                    return redirect("/register")
+                
+                # Prevent deleting yourself
+                if user.id == current_user.id:
+                    flash("You cannot disable your own account.", "error")
+                    return redirect("/register")
+                
+                # Soft delete by disabling
+                user.disabled = True
+                db.session.commit()
+                flash(f"User '{user.username}' has been disabled.", "success")
+                return redirect("/register")
+            except Exception as e:
+                db.session.rollback()
+                print(f"Error disabling user: {e}")
+                flash(f"Error disabling user: {str(e)}", "error")
+                return redirect("/register")
+        
+        # Check if this is an enable request
+        elif request.form.get("action") == "enable_user":
+            try:
+                user_id = request.form.get("user_id")
+                if not user_id:
+                    flash("User ID is required.", "error")
+                    return redirect("/register")
+                
+                user = models.Users.query.get(int(user_id))
+                if not user:
+                    flash("User not found.", "error")
+                    return redirect("/register")
+                
+                user.disabled = False
+                db.session.commit()
+                flash(f"User '{user.username}' has been enabled.", "success")
+                return redirect("/register")
+            except Exception as e:
+                db.session.rollback()
+                print(f"Error enabling user: {e}")
+                flash(f"Error enabling user: {str(e)}", "error")
+                return redirect("/register")
+    
+    # GET request - show user management page with all users
+    try:
+        users = models.Users.query.order_by(models.Users.id.asc()).all()
+    except Exception as e:
+        print(f"Error fetching users: {e}")
+        users = []
+    
+    return render_template("user_management_register.html", users=users)
 
 @app.route("/flask-health-check")
 def flask_health_check():
@@ -946,6 +1103,17 @@ try:
 except Exception as e:
     print(f"Warning: Failed to register plate extraction routes: {e}")
     print("Plate extraction functionality will not be available")
+    import traceback
+    traceback.print_exc()
+
+# Import and register user management routes
+try:
+    from user_routes import register_user_routes
+    register_user_routes(app)
+    print("User management routes registered successfully")
+except Exception as e:
+    print(f"Warning: Failed to register user management routes: {e}")
+    print("User management functionality will not be available")
     import traceback
     traceback.print_exc()
 
