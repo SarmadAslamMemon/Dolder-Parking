@@ -48,7 +48,7 @@
 			<h3 class="feature-title">Benutzer</h3>
 			<p class="feature-description">Neues Konto erstellen.</p>
 		</a>
-		{% if current_user.is_authenticated and (current_user.permission.name == 'ADMIN' or current_user.permission.name == 'ALL') %}
+		{% if current_user.is_authenticated and current_user.permission.name == 'ALL' %}
 		<a class="feature-card" href="/upload_template">
 			<div class="feature-icon">
 				<i class="fas fa-file-upload"></i>

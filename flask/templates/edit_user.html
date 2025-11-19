@@ -70,12 +70,15 @@
 				<select name="permission" id="permission" class="input" required>
 					<option value="none" {% if user.permission.value == 'none' %}selected{% endif %}>NONE - No Access</option>
 					<option value="app" {% if user.permission.value == 'app' %}selected{% endif %}>APP - App Access Only</option>
-					<option value="admin" {% if user.permission.value == 'admin' %}selected{% endif %}>ADMIN - Administrator</option>
+					<option value="poweruser" {% if user.permission.value == 'poweruser' %}selected{% endif %}>POWERUSER - Limited Access</option>
 					<option value="all" {% if user.permission.value == 'all' %}selected{% endif %}>ALL - Full Access</option>
+					{% if user.permission.value == 'admin' %}
+					<option value="admin" selected>ADMIN - Legacy (use POWERUSER instead)</option>
+					{% endif %}
 				</select>
 				<small style="color: #a0aec0; margin-top: 0.5rem; display: block;">
 					<i class="fas fa-info-circle"></i>
-					Permission levels: NONE (no access), APP (create cases only), ADMIN (manage cases), ALL (full access including user management)
+					Permission levels: NONE (no access), APP (create cases only), POWERUSER (Dashboard, Neue Fälle, Overview, Berichte), ALL (full access including user management)
 				</small>
 			</div>
 			

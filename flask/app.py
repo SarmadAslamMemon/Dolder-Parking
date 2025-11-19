@@ -94,14 +94,20 @@ def login():
                 login_user(user)
                 session["name"] = request.form.get("username")
                 if user.permission == models.UserPermission.ADMIN:
-                    busse = models.Busse.query.order_by(models.Busse.db_bussennr.desc()).first()
-                    num = busse.db_bussennr
-                    page = str(num)
-                    return redirect(page)
+                    # Legacy ADMIN users - redirect to dashboard (backward compatibility)
+                    return redirect("/s_all")
                 elif user.permission == models.UserPermission.APP:
                     return redirect("/s_app")
                 elif user.permission == models.UserPermission.ALL:
                     return redirect("/s_all")
+                elif user.permission == models.UserPermission.POWERUSER:
+                    # POWERUSER has access to Dashboard, Neue Fälle, Overview, Berichte
+                    return redirect("/s_all")
+                elif user.permission == models.UserPermission.NONE:
+                    logout_user()
+                    session["name"] = None
+                    flash("You do not have permission to access this system.", "error")
+                    return render_template("login.html")
                 else:
                     logout_user()
                     session["name"] = None
@@ -143,6 +149,13 @@ def s_app():
     # check if the users exist or not
     if not session.get("name"):
         # if not there in the session then redirect to the login page
+        return redirect("/login")
+    
+    # Block NONE users from accessing
+    if current_user.is_authenticated and current_user.permission == models.UserPermission.NONE:
+        logout_user()
+        session["name"] = None
+        flash("You do not have permission to access this system.", "error")
         return redirect("/login")
 
     # var need to be global because it should be persistent between button presses
@@ -679,6 +692,17 @@ def overview(num):
         # if not there in the session then redirect to the login page
         return redirect("/login")
     
+    # Block NONE users from accessing
+    if current_user.is_authenticated and current_user.permission == models.UserPermission.NONE:
+        logout_user()
+        session["name"] = None
+        flash("You do not have permission to access this system.", "error")
+        return redirect("/login")
+    
+    # Block APP users from accessing individual case overview (but allow ALL users)
+    if current_user.is_authenticated and current_user.permission == models.UserPermission.APP:
+        return redirect("/s_app")
+    
     # var need to be global because it should be persistent between button presses
     global OnlyOpenCase
     # to show an error if an number is 
@@ -820,6 +844,17 @@ def reports():
         # if not there in the session then redirect to the login page
         return redirect("/login")
     
+    # Block NONE users from accessing
+    if current_user.is_authenticated and current_user.permission == models.UserPermission.NONE:
+        logout_user()
+        session["name"] = None
+        flash("You do not have permission to access this system.", "error")
+        return redirect("/login")
+    
+    # Block APP users from accessing reports (but allow ALL users)
+    if current_user.is_authenticated and current_user.permission == models.UserPermission.APP:
+        return redirect("/s_app")
+    
     today = date.today()
     # define and reset flag
     dateWrong = False
@@ -891,6 +926,17 @@ def download():
     if not session.get("name"):
         # if not there in the session then redirect to the login page
         return redirect("/login")
+    
+    # Block NONE users from accessing
+    if current_user.is_authenticated and current_user.permission == models.UserPermission.NONE:
+        logout_user()
+        session["name"] = None
+        flash("You do not have permission to access this system.", "error")
+        return redirect("/login")
+    
+    # Block APP users from downloading reports (but allow ALL users)
+    if current_user.is_authenticated and current_user.permission == models.UserPermission.APP:
+        return redirect("/s_app")
 
     excel_file = os.path.join(dir_path, EXCEL_FOLDER, 'temp.xlsx')
     return send_file(
@@ -899,12 +945,50 @@ def download():
         download_name='DolderParkExport.xlsx',
         as_attachment=True)
 
+@app.route("/s_overview", methods=["GET", "POST"])
+def s_overview():
+    # check if the users exist or not
+    if not session.get("name"):
+        # if not there in the session then redirect to the login page
+        return redirect("/login")
+    
+    # Block NONE users from accessing
+    if current_user.is_authenticated and current_user.permission == models.UserPermission.NONE:
+        logout_user()
+        session["name"] = None
+        flash("You do not have permission to access this system.", "error")
+        return redirect("/login")
+    
+    # Block APP users from accessing overview (but allow ALL users)
+    if current_user.is_authenticated and current_user.permission == models.UserPermission.APP:
+        return redirect("/s_app")
+    
+    # Redirect to last case number by default
+    busse = models.Busse.query.order_by(models.Busse.db_bussennr.desc()).first()
+    if busse:
+        return redirect("/" + str(busse.db_bussennr))
+    else:
+        # If no cases exist, show empty overview
+        global OnlyOpenCase
+        return render_template('s_overview.html', busse=None, nfound=False, OnlyOpenCase=OnlyOpenCase, htmlpath=None, exportFailed=False)
+
 @app.route("/s_all")
 def all():
   # check if the users exist or not
     if not session.get("name"):
         # if not there in the session then redirect to the login page
         return redirect("/login")
+    
+    # Block NONE users from accessing
+    if current_user.is_authenticated and current_user.permission == models.UserPermission.NONE:
+        logout_user()
+        session["name"] = None
+        flash("You do not have permission to access this system.", "error")
+        return redirect("/login")
+    
+    # Block APP users from accessing dashboard (but allow ALL users)
+    if current_user.is_authenticated and current_user.permission == models.UserPermission.APP:
+        return redirect("/s_app")
 
     #busse = models.Busse.query.order_by(models.Busse.db_bussennr.desc()).first()
 
@@ -919,8 +1003,19 @@ def logout():
 @app.route('/register', methods=["GET", "POST"])
 def register():
     # check if the users is allowed to create users or not
-    if not session.get("name") == "admin":
+    if not session.get("name"):
         # if not there in the session then redirect to the login page
+        return redirect("/login")
+    
+    # Block NONE users from accessing
+    if current_user.is_authenticated and current_user.permission == models.UserPermission.NONE:
+        logout_user()
+        session["name"] = None
+        flash("You do not have permission to access this system.", "error")
+        return redirect("/login")
+    
+    # Only allow admin username or ALL permission users
+    if session.get("name") != "admin" and (not current_user.is_authenticated or current_user.permission != models.UserPermission.ALL):
         return redirect("/login")
 
     # Handle POST requests
@@ -953,7 +1048,7 @@ def register():
                 user = models.Users(
                     username=username,
                     password=bcrypt.generate_password_hash(password).decode('utf-8'),
-                    permission=models.UserPermission[permission.upper()] if permission.upper() in ['NONE', 'APP', 'ADMIN', 'ALL'] else models.UserPermission.NONE
+                    permission=models.UserPermission[permission.upper()] if permission.upper() in ['NONE', 'APP', 'ALL', 'POWERUSER'] else models.UserPermission.NONE
                 )
                 db.session.add(user)
                 db.session.commit()
@@ -985,7 +1080,7 @@ def register():
                 
                 # Update permission if provided
                 new_permission = request.form.get("permission", "").strip()
-                if new_permission and new_permission.upper() in ['NONE', 'APP', 'ADMIN', 'ALL']:
+                if new_permission and new_permission.upper() in ['NONE', 'APP', 'ALL', 'POWERUSER']:
                     user.permission = models.UserPermission[new_permission.upper()]
                 
                 # Update disabled status

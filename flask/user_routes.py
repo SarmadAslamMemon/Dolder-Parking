@@ -20,9 +20,9 @@ def register_user_routes(app):
         if not session.get("name"):
             return redirect("/login")
         
-        # Check if user has ADMIN or ALL permission
+        # Check if user has ALL permission (only ALL can manage users)
         if current_user.is_authenticated:
-            if current_user.permission not in [models.UserPermission.ADMIN, models.UserPermission.ALL]:
+            if current_user.permission != models.UserPermission.ALL:
                 flash("You do not have permission to access user management.", "error")
                 return redirect("/s_all")
         else:
@@ -44,9 +44,9 @@ def register_user_routes(app):
         if not session.get("name"):
             return redirect("/login")
         
-        # Check if user has ADMIN or ALL permission
+        # Check if user has ALL permission (only ALL can manage users)
         if current_user.is_authenticated:
-            if current_user.permission not in [models.UserPermission.ADMIN, models.UserPermission.ALL]:
+            if current_user.permission != models.UserPermission.ALL:
                 flash("You do not have permission to edit users.", "error")
                 return redirect("/user_management")
         else:
@@ -104,9 +104,9 @@ def register_user_routes(app):
         if not session.get("name"):
             return redirect("/login")
         
-        # Check if user has ADMIN or ALL permission
+        # Check if user has ALL permission (only ALL can manage users)
         if current_user.is_authenticated:
-            if current_user.permission not in [models.UserPermission.ADMIN, models.UserPermission.ALL]:
+            if current_user.permission != models.UserPermission.ALL:
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                     return jsonify({"error": "Permission denied"}), 403
                 flash("You do not have permission to delete users.", "error")
@@ -155,9 +155,9 @@ def register_user_routes(app):
         if not session.get("name"):
             return redirect("/login")
         
-        # Check if user has ADMIN or ALL permission
+        # Check if user has ALL permission (only ALL can manage users)
         if current_user.is_authenticated:
-            if current_user.permission not in [models.UserPermission.ADMIN, models.UserPermission.ALL]:
+            if current_user.permission != models.UserPermission.ALL:
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                     return jsonify({"error": "Permission denied"}), 403
                 flash("You do not have permission to enable users.", "error")

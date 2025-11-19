@@ -70,7 +70,7 @@
 						<option value="">Select Permission</option>
 						<option value="none">NONE - No Access</option>
 						<option value="app">APP - App Access Only</option>
-						<option value="admin">ADMIN - Administrator</option>
+						<option value="poweruser">POWERUSER - Limited Access</option>
 						<option value="all">ALL - Full Access</option>
 					</select>
 				</div>
@@ -123,7 +123,7 @@
 			</thead>
 			<tbody>
 				{% for user in users %}
-				<tr class="user-row" data-username="{{ user.username|lower }}" data-id="{{ user.id }}" data-permission="{{ user.permission.value|lower }}" data-status="{{ 'disabled' if user.disabled else 'active' }}" style="border-bottom: 1px solid rgba(255,255,255,.08); transition: background 0.2s ease;" 
+				<tr class="user-row" data-username="{{ user.username|lower }}" data-id="{{ user.id }}" data-permission="{{ user.permission_value|lower }}" data-status="{{ 'disabled' if user.disabled else 'active' }}" style="border-bottom: 1px solid rgba(255,255,255,.08); transition: background 0.2s ease;" 
 				    onmouseover="this.style.background='rgba(255,255,255,.03)'" 
 				    onmouseout="this.style.background='transparent'">
 					<td style="padding: 1rem; color: #cfd7df;">{{ user.id }}</td>
@@ -137,8 +137,8 @@
 						{% endif %}
 					</td>
 					<td style="padding: 1rem;">
-						<span class="permission-badge permission-{{ user.permission.value.lower() }}">
-							{{ user.permission.value.upper() }}
+						<span class="permission-badge permission-{{ user.permission_value|lower }}">
+							{{ user.permission_value|upper }}
 						</span>
 					</td>
 					<td style="padding: 1rem;">
@@ -156,15 +156,21 @@
 					</td>
 					<td style="padding: 1rem; text-align: center;">
 						<div style="display: flex; gap: 0.5rem; justify-content: center; align-items: center; flex-wrap: wrap;">
-							<button type="button" class="btn btn-outline btn-sm" onclick="openEditModal({{ user.id }}, '{{ user.username }}', '{{ user.permission.value }}', {{ 'true' if user.disabled else 'false' }})" title="Edit User">
+							<button type="button" class="btn btn-outline btn-sm edit-user-btn" 
+							        data-user-id="{{ user.id }}" 
+							        data-username="{{ user.username }}" 
+							        data-permission="{{ user.permission_value }}" 
+							        data-disabled="{{ user.disabled }}" 
+							        title="Edit User">
 								<i class="fas fa-edit"></i>
 								Edit
 							</button>
 							{% if user.disabled %}
 								<form action="/register" method="post" style="display: inline;" 
-								      onsubmit="return confirm('Enable user {{ user.username }}?');">
+								      onsubmit="return confirmUserAction(this, 'enable');">
 									<input type="hidden" name="action" value="enable_user">
 									<input type="hidden" name="user_id" value="{{ user.id }}">
+									<input type="hidden" name="username" value="{{ user.username }}">
 									<button type="submit" class="btn btn-primary btn-sm" title="Enable User">
 										<i class="fas fa-check"></i>
 										Enable
@@ -173,9 +179,10 @@
 							{% else %}
 								{% if user.id != current_user.id %}
 									<form action="/register" method="post" style="display: inline;" 
-									      onsubmit="return confirm('Disable user {{ user.username }}? This will prevent them from logging in.');">
+									      onsubmit="return confirmUserAction(this, 'disable');">
 										<input type="hidden" name="action" value="delete_user">
 										<input type="hidden" name="user_id" value="{{ user.id }}">
+										<input type="hidden" name="username" value="{{ user.username }}">
 										<button type="submit" class="btn btn-outline btn-sm btn-danger" title="Disable User">
 											<i class="fas fa-ban"></i>
 											Disable
@@ -194,7 +201,7 @@
 	<!-- Mobile Card View -->
 	<div class="user-cards-mobile" id="userCardsContainer">
 		{% for user in users %}
-		<div class="user-card user-row" data-username="{{ user.username|lower }}" data-id="{{ user.id }}" data-permission="{{ user.permission.value|lower }}" data-status="{{ 'disabled' if user.disabled else 'active' }}">
+		<div class="user-card user-row" data-username="{{ user.username|lower }}" data-id="{{ user.id }}" data-permission="{{ user.permission_value|lower }}" data-status="{{ 'disabled' if user.disabled else 'active' }}">
 			<div class="user-card-header">
 				<div class="user-card-username">
 					{% if user.id == current_user.id %}
@@ -210,8 +217,8 @@
 			<div class="user-card-body">
 				<div class="user-card-row">
 					<span class="user-card-label">Permission:</span>
-					<span class="permission-badge permission-{{ user.permission.value.lower() }}">
-						{{ user.permission.value.upper() }}
+					<span class="permission-badge permission-{{ user.permission_value|lower }}">
+						{{ user.permission_value|upper }}
 					</span>
 				</div>
 				<div class="user-card-row">
@@ -230,15 +237,21 @@
 				</div>
 			</div>
 			<div class="user-card-actions">
-				<button type="button" class="btn btn-outline btn-sm" onclick="openEditModal({{ user.id }}, '{{ user.username }}', '{{ user.permission.value }}', {{ 'true' if user.disabled else 'false' }})" title="Edit User">
+				<button type="button" class="btn btn-outline btn-sm edit-user-btn" 
+				        data-user-id="{{ user.id }}" 
+				        data-username="{{ user.username }}" 
+				        data-permission="{{ user.permission_value }}" 
+				        data-disabled="{{ user.disabled }}" 
+				        title="Edit User">
 					<i class="fas fa-edit"></i>
 					Edit
 				</button>
 				{% if user.disabled %}
 					<form action="/register" method="post" style="display: inline; flex: 1;" 
-					      onsubmit="return confirm('Enable user {{ user.username }}?');">
+					      onsubmit="return confirmUserAction(this, 'enable');">
 						<input type="hidden" name="action" value="enable_user">
 						<input type="hidden" name="user_id" value="{{ user.id }}">
+						<input type="hidden" name="username" value="{{ user.username }}">
 						<button type="submit" class="btn btn-primary btn-sm" title="Enable User" style="width: 100%;">
 							<i class="fas fa-check"></i>
 							Enable
@@ -247,9 +260,10 @@
 				{% else %}
 					{% if user.id != current_user.id %}
 						<form action="/register" method="post" style="display: inline; flex: 1;" 
-						      onsubmit="return confirm('Disable user {{ user.username }}? This will prevent them from logging in.');">
+						      onsubmit="return confirmUserAction(this, 'disable');">
 							<input type="hidden" name="action" value="delete_user">
 							<input type="hidden" name="user_id" value="{{ user.id }}">
+							<input type="hidden" name="username" value="{{ user.username }}">
 							<button type="submit" class="btn btn-outline btn-sm btn-danger" title="Disable User" style="width: 100%;">
 								<i class="fas fa-ban"></i>
 								Disable
@@ -325,7 +339,7 @@
 					<select name="permission" id="edit_permission" class="input" required>
 						<option value="none">NONE - No Access</option>
 						<option value="app">APP - App Access Only</option>
-						<option value="admin">ADMIN - Administrator</option>
+						<option value="poweruser">POWERUSER - Limited Access</option>
 						<option value="all">ALL - Full Access</option>
 					</select>
 				</div>
@@ -392,16 +406,17 @@
 	border: 1px solid rgba(110, 193, 255, 0.3);
 }
 
-.permission-admin {
-	background: rgba(255, 193, 7, 0.15);
-	color: #ffc107;
-	border: 1px solid rgba(255, 193, 7, 0.3);
-}
 
 .permission-all {
 	background: rgba(52, 199, 89, 0.15);
 	color: #34c759;
 	border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.permission-poweruser {
+	background: rgba(147, 51, 234, 0.15);
+	color: #9333ea;
+	border: 1px solid rgba(147, 51, 234, 0.3);
 }
 
 .status-badge {
@@ -813,19 +828,89 @@ select.form-input option:disabled {
 </style>
 
 <script>
-function openEditModal(userId, username, permission, disabled) {
-	document.getElementById('edit_user_id').value = userId;
-	document.getElementById('edit_username').value = username;
-	document.getElementById('edit_permission').value = permission.toLowerCase();
-	document.getElementById('edit_password').value = '';
+function confirmUserAction(form, action) {
+	var usernameInput = form.querySelector('input[name="username"]');
+	var username = usernameInput ? usernameInput.value : 'this user';
 	
-	if (disabled === 'true' || disabled === true) {
-		document.getElementById('edit_status_disabled').checked = true;
-	} else {
-		document.getElementById('edit_status_active').checked = true;
+	if (action === 'enable') {
+		return confirm(`Enable user ${username}?`);
+	} else if (action === 'disable') {
+		return confirm(`Disable user ${username}? This will prevent them from logging in.`);
 	}
-	
-	document.getElementById('editModal').style.display = 'flex';
+	return false;
+}
+
+function openEditModal(userId, username, permission, disabled) {
+	try {
+		// Set user ID
+		var userIdField = document.getElementById('edit_user_id');
+		if (!userIdField) {
+			console.error('edit_user_id field not found');
+			return;
+		}
+		userIdField.value = userId;
+		
+		// Set username
+		var usernameField = document.getElementById('edit_username');
+		if (!usernameField) {
+			console.error('edit_username field not found');
+			return;
+		}
+		usernameField.value = username;
+		
+		// Convert legacy 'admin' to 'poweruser'
+		// Ensure permission is a string and handle null/undefined
+		var permissionValue = (permission || '').toString().toLowerCase();
+		if (permissionValue === 'admin') {
+			permissionValue = 'poweruser';
+		}
+		
+		// Set permission
+		var permissionField = document.getElementById('edit_permission');
+		if (!permissionField) {
+			console.error('edit_permission field not found');
+			return;
+		}
+		permissionField.value = permissionValue;
+		
+		// Clear password field
+		var passwordField = document.getElementById('edit_password');
+		if (passwordField) {
+			passwordField.value = '';
+		}
+		
+		// Set disabled status
+		var disabledRadio = document.getElementById('edit_status_disabled');
+		var activeRadio = document.getElementById('edit_status_active');
+		if (disabledRadio && activeRadio) {
+			// Handle boolean true/false (from tojson) or string 'true'/'false'
+			var isDisabled = false;
+			if (typeof disabled === 'boolean') {
+				isDisabled = disabled;
+			} else if (typeof disabled === 'string') {
+				isDisabled = disabled.toLowerCase() === 'true';
+			}
+			
+			if (isDisabled) {
+				disabledRadio.checked = true;
+				activeRadio.checked = false;
+			} else {
+				activeRadio.checked = true;
+				disabledRadio.checked = false;
+			}
+		}
+		
+		// Show modal
+		var modal = document.getElementById('editModal');
+		if (!modal) {
+			console.error('editModal not found');
+			return;
+		}
+		modal.style.display = 'flex';
+	} catch (error) {
+		console.error('Error opening edit modal:', error);
+		alert('Error opening edit form. Please check the console for details.');
+	}
 }
 
 function closeEditModal() {
@@ -842,6 +927,18 @@ window.onclick = function(event) {
 
 // User Search Functionality
 document.addEventListener('DOMContentLoaded', function() {
+	// Attach event listeners to all Edit buttons
+	document.querySelectorAll('.edit-user-btn').forEach(function(btn) {
+		btn.addEventListener('click', function() {
+			var userId = parseInt(this.getAttribute('data-user-id'));
+			var username = this.getAttribute('data-username');
+			var permission = this.getAttribute('data-permission');
+			var disabledStr = this.getAttribute('data-disabled');
+			var disabled = disabledStr === 'True' || disabledStr === 'true' || disabledStr === '1';
+			openEditModal(userId, username, permission, disabled);
+		});
+	});
+	
 	const searchInput = document.getElementById('userSearch');
 	const clearSearchBtn = document.getElementById('clearSearch');
 	const searchResultsInfo = document.getElementById('searchResultsInfo');
