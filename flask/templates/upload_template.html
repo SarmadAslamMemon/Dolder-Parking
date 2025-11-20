@@ -26,8 +26,8 @@
 <section class="card form-card">
 	<div class="card-header">
 		<h3 class="card-title">
-			<i class="fas fa-file-code"></i>
-			HTML-Datei hochladen
+			<i class="fas fa-file-upload"></i>
+			Datei hochladen
 		</h3>
 	</div>
 	<form action="#" method="post" enctype="multipart/form-data" class="form">
@@ -35,9 +35,22 @@
 			<div class="form-field">
 				<label class="label" for="html_file">
 					<i class="fas fa-file"></i>
-					HTML-Datei auswählen
+					DOC/DOCX-Datei auswählen
 				</label>
-				<input class="input" type="file" name="html_file" id="html_file" accept=".html" required />
+				<input class="input" type="file" name="html_file" id="html_file" accept=".doc,.docx" required />
+				<small style="color: #a0aec0; margin-top: 0.5rem; display: block;">
+					Unterstützte Formate: DOC, DOCX
+				</small>
+			</div>
+			<div class="form-field">
+				<label class="label" for="button_name">
+					<i class="fas fa-tag"></i>
+					Button-Name
+				</label>
+				<input class="input" type="text" name="button_name" id="button_name" placeholder="z.B. Test Vorlage" required />
+				<small style="color: #a0aec0; margin-top: 0.5rem; display: block;">
+					Dieser Name wird auf dem Button in der Übersicht angezeigt
+				</small>
 			</div>
 		</div>
 		
@@ -45,6 +58,10 @@
 			<button type="submit" class="save-btn btn-primary">
 				<i class="fas fa-upload"></i>
 				Hochladen
+			</button>
+			<button type="reset" class="btn btn-outline" onclick="document.getElementById('html_file').value = '';">
+				<i class="fas fa-times"></i>
+				Abbrechen
 			</button>
 		</div>
 	</form>
@@ -54,12 +71,6 @@
 <div class="notice success">
 	<i class="fas fa-check-circle"></i>
 	<span>{{ success_message }}</span>
-	{% if page_id %}
-	<a class="btn btn-outline" href="/page/{{ page_id }}">
-		<i class="fas fa-eye"></i>
-		Ansehen unter /page/{{ page_id }}
-	</a>
-	{% endif %}
 </div>
 {% endif %}
 
@@ -75,11 +86,6 @@
 		<h3 class="card-title">
 			<i class="fas fa-list"></i>
 			Hochgeladene Dateien
-			{% if current_user.permission.name == 'ALL' %}
-			<span style="font-size: 0.875rem; color: #a0aec0; margin-left: 0.5rem;">(Alle Benutzer)</span>
-			{% else %}
-			<span style="font-size: 0.875rem; color: #a0aec0; margin-left: 0.5rem;">(Nur Ihre Dateien)</span>
-			{% endif %}
 		</h3>
 	</div>
 	{% if uploaded_files and uploaded_files|length > 0 %}
@@ -88,16 +94,27 @@
 		{% for file in uploaded_files %}
 		<div class="uploaded-file-item">
 			<div class="file-info">
-				<i class="fas fa-file-code"></i>
+				{% if file.file_type in ['doc', 'docx'] %}
+					<i class="fas fa-file-word" style="color: #2563eb;"></i>
+				{% else %}
+					<i class="fas fa-file"></i>
+				{% endif %}
 				<span class="file-link">
-					<a href="/page/{{ file.id }}">Seite {{ file.id }}</a>
-				</span>
-				<span class="file-user">
-					<i class="fas fa-user"></i>
-					{% if file.username %}
-					{{ file.username }} (ID: {{ file.user_id }})
-					{% else %}
-					{{ current_user.username }} (ID: {{ current_user.id }})
+					<strong>{{ file.filename }}</strong>
+					{% if file.is_protected %}
+						<span style="background-color: #fbbf24; color: #78350f; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; margin-left: 0.5rem; font-weight: normal;">
+							<i class="fas fa-shield-alt"></i> System
+						</span>
+					{% endif %}
+					{% if file.is_active %}
+						<span style="background-color: #10b981; color: #ffffff; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; margin-left: 0.5rem; font-weight: normal;">
+							<i class="fas fa-check-circle"></i> Aktiv
+						</span>
+					{% endif %}
+					{% if file.size %}
+						<span style="color: #a0aec0; margin-left: 0.5rem;">
+							({{ "%.1f"|format(file.size / 1024) }} KB)
+						</span>
 					{% endif %}
 				</span>
 				<span class="file-date">
@@ -110,16 +127,36 @@
 				</span>
 			</div>
 			<div class="file-actions">
-				<a href="/page/{{ file.id }}" class="btn btn-outline btn-sm">
-					<i class="fas fa-eye"></i>
-					Ansehen
+				<a href="/download_template/{{ file.filename }}" class="btn btn-outline btn-sm" title="Datei herunterladen">
+					<i class="fas fa-download"></i>
+					Herunterladen
 				</a>
-				<form action="/delete_template/{{ file.id }}" method="post" class="inline-form">
-					<button type="submit" class="btn btn-outline btn-sm btn-danger" onclick="return confirm('Möchten Sie diese Datei wirklich löschen?');">
-						<i class="fas fa-trash"></i>
-						Löschen
-					</button>
-				</form>
+				{% if not file.is_active %}
+					<form action="/set_active_template/{{ file.filename }}" method="post" class="inline-form">
+						<button type="submit" class="btn btn-outline btn-sm" style="background-color: #10b981; color: white; border-color: #10b981;" title="Als aktiv setzen - wird in der Übersicht verwendet">
+							<i class="fas fa-star"></i>
+							Aktiv setzen
+						</button>
+					</form>
+				{% else %}
+					<span class="btn btn-outline btn-sm" style="background-color: #10b981; color: white; border-color: #10b981; opacity: 0.8;" title="Diese Datei ist aktiv und wird in der Übersicht verwendet">
+						<i class="fas fa-check-circle"></i>
+						Aktiv
+					</span>
+				{% endif %}
+				{% if file.is_protected %}
+					<span class="btn btn-outline btn-sm" style="opacity: 0.6; cursor: not-allowed;" title="Geschützte Systemdatei - kann nicht gelöscht werden">
+						<i class="fas fa-lock"></i>
+						Geschützt
+					</span>
+				{% else %}
+					<form action="/delete_template/{{ file.filename }}" method="post" class="inline-form" onsubmit="return confirm('Möchten Sie die Datei wirklich löschen?');">
+						<button type="submit" class="btn btn-outline btn-sm btn-danger" title="Datei löschen">
+							<i class="fas fa-trash"></i>
+							Löschen
+						</button>
+					</form>
+				{% endif %}
 			</div>
 		</div>
 		{% endfor %}

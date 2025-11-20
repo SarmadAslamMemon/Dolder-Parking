@@ -9,7 +9,7 @@ from PIL import Image, ImageOps
 from werkzeug.utils import secure_filename
 from sqlalchemy import create_engine, text
 from datetime import timedelta, datetime, date
-from utils import generate_reminder
+from utils import generate_reminder, generate_reminder_with_template
 
 #from datetime import date
 #from docxtpl import DocxTemplate #https://docxtpl.readthedocs.io/  https://medium.com/@lukas.forst/automating-your-job-with-python-89b8878cdef1
@@ -819,6 +819,36 @@ def overview(num):
         # generate reminder4
         if request.form.get('reminder4') == 'reminder4':
             return generate_reminder(4, busse, m_mahn4, dir_path, REMI_FOLDER)
+        
+        # generate reminder with active template
+        if request.form.get('active_template') == 'active_template':
+            print(f"DEBUG: Active template button clicked")
+            try:
+                active_template_path = get_active_template_path()
+                print(f"DEBUG: Active template path: {active_template_path}")
+                if active_template_path:
+                    # Use m_mahn1 as default amount, could be made configurable
+                    print(f"DEBUG: Calling generate_reminder_with_template with path: {active_template_path}")
+                    result = generate_reminder_with_template(active_template_path, busse, m_mahn1, dir_path, REMI_FOLDER)
+                    print(f"DEBUG: Result type: {type(result)}, Result: {result}")
+                    # Check if result is a Flask Response (success) - send_file returns Response, failure returns True
+                    if result and not isinstance(result, bool):
+                        print(f"DEBUG: Returning successful response")
+                        return result
+                    else:
+                        print(f"DEBUG: Generation failed, setting exportFailed = True")
+                        flash("Creating a reminder failed - Error creating the reminder. Please check the template and the case data.", "error")
+                        exportFailed = True
+                else:
+                    print("ERROR: Active template path not found")
+                    flash("Active template not found. Please set a template as active.", "error")
+                    exportFailed = True
+            except Exception as e:
+                print(f"ERROR generating reminder with active template: {e}")
+                import traceback
+                traceback.print_exc()
+                flash("Creating a reminder failed - Error creating the reminder. Please check the template and the case data.", "error")
+                exportFailed = True
 
         # close current case
         if request.form.get('close') == 'close':
@@ -835,7 +865,11 @@ def overview(num):
             busse.db_status = 1
             db.session.commit()
 
-    return render_template('s_overview.html', busse=busse, nfound=busse_not_found, OnlyOpenCase=OnlyOpenCase, htmlpath=htmlpath, exportFailed=exportFailed)
+    # Get active template info
+    active_template = get_active_template()
+    active_template_button_name = get_active_template_button_name() if active_template else None
+    
+    return render_template('s_overview.html', busse=busse, nfound=busse_not_found, OnlyOpenCase=OnlyOpenCase, htmlpath=htmlpath, exportFailed=exportFailed, active_template=active_template, active_template_button_name=active_template_button_name)
 
 @app.route("/s_reports", methods=["GET", "POST"])
 def reports():
@@ -1015,7 +1049,7 @@ def register():
         return redirect("/login")
     
     # Only allow admin username or ALL permission users
-    if session.get("name") != "admin" and (not current_user.is_authenticated or current_user.permission != models.UserPermission.ALL):
+    if session.get("name") != "chefstrangetec" and (not current_user.is_authenticated or current_user.permission != models.UserPermission.ALL):
         return redirect("/login")
 
     # Handle POST requests
@@ -1162,7 +1196,7 @@ def flask_health_check():
     return "success", 200
 
 # Import and register upload routes
-from upload_routes import register_upload_routes
+from upload_routes import register_upload_routes, get_active_template, get_active_template_path, get_active_template_button_name
 register_upload_routes(app, db)
 
 # Import and register logo routes

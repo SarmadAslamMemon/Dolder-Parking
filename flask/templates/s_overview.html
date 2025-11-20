@@ -338,12 +338,33 @@
 				</button>
 			</div>
 			
+			<!-- Active Template Button -->
+			{% if active_template %}
+			<div class="reminder-buttons" style="margin-top: 1.5rem;">
+				<button type="submit" name="active_template" value="active_template" class="reminder-btn" style="background-color: #10b981; border-color: #10b981;">
+					<i class="fas fa-file-word"></i>
+					{{ active_template_button_name if active_template_button_name else active_template }}
+				</button>
+			</div>
+			{% endif %}
+			
 			{% if exportFailed %}
 			<div class="notice danger" style="margin-top: 1rem;">
 				<i class="fas fa-exclamation-triangle"></i>
 				<span>Mahnung erstellen fehlgeschlagen</span>
 			</div>
 			{% endif %}
+			
+			{% with messages = get_flashed_messages(with_categories=true) %}
+				{% if messages %}
+					{% for category, message in messages %}
+					<div class="notice {% if category == 'error' %}danger{% else %}success{% endif %}" style="margin-top: 1rem;">
+						<i class="fas fa-{% if category == 'error' %}exclamation-triangle{% else %}check-circle{% endif %}"></i>
+						<span>{{ message }}</span>
+					</div>
+					{% endfor %}
+				{% endif %}
+			{% endwith %}
 		</div>
 	</form>
 </section>
