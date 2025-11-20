@@ -1,6 +1,6 @@
 from app import db
 from flask_login import UserMixin
-from sqlalchemy import ForeignKey, TypeDecorator, String
+from sqlalchemy import ForeignKey, TypeDecorator, String, LargeBinary
 from sqlalchemy.orm import relationship
 import enum
 
@@ -87,7 +87,10 @@ class Busse(db.Model):
 # table html_templates
 class HtmlTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    html_content = db.Column(db.Text, nullable=False)
+    html_content = db.Column(db.Text, nullable=True)  # Nullable for DOC/PDF files
+    file_data = db.Column(LargeBinary, nullable=True)  # Binary data for DOC/PDF files
+    file_type = db.Column(db.String(10), nullable=True)  # 'html', 'doc', 'docx', 'pdf'
+    file_name = db.Column(db.String(255), nullable=True)  # Original filename
     created_at = db.Column(db.DateTime(), nullable=False)
     user_id = db.Column(db.Integer, ForeignKey('users.id'), nullable=True)
     
