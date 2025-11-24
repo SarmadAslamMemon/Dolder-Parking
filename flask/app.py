@@ -867,9 +867,8 @@ def overview(num):
 
     # Get active template info
     active_template = get_active_template()
-    active_template_button_name = get_active_template_button_name() if active_template else None
     
-    return render_template('s_overview.html', busse=busse, nfound=busse_not_found, OnlyOpenCase=OnlyOpenCase, htmlpath=htmlpath, exportFailed=exportFailed, active_template=active_template, active_template_button_name=active_template_button_name)
+    return render_template('s_overview.html', busse=busse, nfound=busse_not_found, OnlyOpenCase=OnlyOpenCase, htmlpath=htmlpath, exportFailed=exportFailed, active_template=active_template)
 
 @app.route("/s_reports", methods=["GET", "POST"])
 def reports():
@@ -1196,7 +1195,7 @@ def flask_health_check():
     return "success", 200
 
 # Import and register upload routes
-from upload_routes import register_upload_routes, get_active_template, get_active_template_path, get_active_template_button_name
+from upload_routes import register_upload_routes, get_active_template, get_active_template_path
 register_upload_routes(app, db)
 
 # Import and register logo routes

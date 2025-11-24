@@ -1,6 +1,4 @@
 {
-  "active_template": "for_testinf_template.docx",
-  "button_names": {
-    "for_testinf_template.docx": "tesing button"
-  }
+  "active_template": null,
+  "button_names": {}
 }

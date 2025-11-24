@@ -39,17 +39,7 @@
 				</label>
 				<input class="input" type="file" name="html_file" id="html_file" accept=".doc,.docx" required />
 				<small style="color: #a0aec0; margin-top: 0.5rem; display: block;">
-					Unterstützte Formate: DOC, DOCX
-				</small>
-			</div>
-			<div class="form-field">
-				<label class="label" for="button_name">
-					<i class="fas fa-tag"></i>
-					Button-Name
-				</label>
-				<input class="input" type="text" name="button_name" id="button_name" placeholder="z.B. Test Vorlage" required />
-				<small style="color: #a0aec0; margin-top: 0.5rem; display: block;">
-					Dieser Name wird auf dem Button in der Übersicht angezeigt
+					Unterstützte Formate: DOC, DOCX. Wenn eine Datei mit demselben Namen bereits existiert, wird sie ersetzt.
 				</small>
 			</div>
 		</div>
@@ -80,93 +70,6 @@
 	{{ error_message }}
 </div>
 {% endif %}
-
-<section class="card form-card">
-	<div class="card-header">
-		<h3 class="card-title">
-			<i class="fas fa-list"></i>
-			Hochgeladene Dateien
-		</h3>
-	</div>
-	{% if uploaded_files and uploaded_files|length > 0 %}
-	<div class="uploaded-files-list">
-		<!-- DEBUG: uploaded_files count = {{ uploaded_files|length }} -->
-		{% for file in uploaded_files %}
-		<div class="uploaded-file-item">
-			<div class="file-info">
-				{% if file.file_type in ['doc', 'docx'] %}
-					<i class="fas fa-file-word" style="color: #2563eb;"></i>
-				{% else %}
-					<i class="fas fa-file"></i>
-				{% endif %}
-				<span class="file-link">
-					<strong>{{ file.filename }}</strong>
-					{% if file.is_protected %}
-						<span style="background-color: #fbbf24; color: #78350f; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; margin-left: 0.5rem; font-weight: normal;">
-							<i class="fas fa-shield-alt"></i> System
-						</span>
-					{% endif %}
-					{% if file.is_active %}
-						<span style="background-color: #10b981; color: #ffffff; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; margin-left: 0.5rem; font-weight: normal;">
-							<i class="fas fa-check-circle"></i> Aktiv
-						</span>
-					{% endif %}
-					{% if file.size %}
-						<span style="color: #a0aec0; margin-left: 0.5rem;">
-							({{ "%.1f"|format(file.size / 1024) }} KB)
-						</span>
-					{% endif %}
-				</span>
-				<span class="file-date">
-					<i class="fas fa-calendar"></i>
-					{% if file.created_at %}
-					{{ file.created_at.strftime('%Y-%m-%d %H:%M') }}
-					{% else %}
-					-
-					{% endif %}
-				</span>
-			</div>
-			<div class="file-actions">
-				<a href="/download_template/{{ file.filename }}" class="btn btn-outline btn-sm" title="Datei herunterladen">
-					<i class="fas fa-download"></i>
-					Herunterladen
-				</a>
-				{% if not file.is_active %}
-					<form action="/set_active_template/{{ file.filename }}" method="post" class="inline-form">
-						<button type="submit" class="btn btn-outline btn-sm" style="background-color: #10b981; color: white; border-color: #10b981;" title="Als aktiv setzen - wird in der Übersicht verwendet">
-							<i class="fas fa-star"></i>
-							Aktiv setzen
-						</button>
-					</form>
-				{% else %}
-					<span class="btn btn-outline btn-sm" style="background-color: #10b981; color: white; border-color: #10b981; opacity: 0.8;" title="Diese Datei ist aktiv und wird in der Übersicht verwendet">
-						<i class="fas fa-check-circle"></i>
-						Aktiv
-					</span>
-				{% endif %}
-				{% if file.is_protected %}
-					<span class="btn btn-outline btn-sm" style="opacity: 0.6; cursor: not-allowed;" title="Geschützte Systemdatei - kann nicht gelöscht werden">
-						<i class="fas fa-lock"></i>
-						Geschützt
-					</span>
-				{% else %}
-					<form action="/delete_template/{{ file.filename }}" method="post" class="inline-form" onsubmit="return confirm('Möchten Sie die Datei wirklich löschen?');">
-						<button type="submit" class="btn btn-outline btn-sm btn-danger" title="Datei löschen">
-							<i class="fas fa-trash"></i>
-							Löschen
-						</button>
-					</form>
-				{% endif %}
-			</div>
-		</div>
-		{% endfor %}
-	</div>
-	{% else %}
-	<div class="uploaded-files-list">
-		<p style="color: #a0aec0; padding: 1rem; text-align: center;">Keine Dateien hochgeladen.</p>
-	</div>
-	{% endif %}
-</section>
 
 {% endblock %}
 

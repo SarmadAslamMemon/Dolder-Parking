@@ -155,62 +155,32 @@ def register_upload_routes(app, db):
                 return redirect("/upload_template")
             
             try:
-                # Get button name from form
-                button_name = request.form.get('button_name', '').strip()
-                if not button_name:
-                    session['upload_error'] = "Bitte geben Sie einen Button-Namen ein."
-                    return redirect("/upload_template")
-                
-                # Get secure filename
-                original_filename = secure_filename(file.filename)
-                
-                # Check if trying to upload a protected filename
-                if is_protected_file(original_filename):
-                    session['upload_error'] = f"Der Dateiname '{original_filename}' ist geschützt und kann nicht verwendet werden. Bitte verwenden Sie einen anderen Namen."
-                    return redirect("/upload_template")
-                
-                # Extract name and extension
-                name, ext = os.path.splitext(original_filename)
-                
-                # Normalize filename to match system file pattern (lowercase, underscores)
-                # Remove spaces and special characters, convert to lowercase
-                import re
-                normalized_name = name.lower().replace(' ', '_').replace('-', '_')
-                # Remove any characters that aren't alphanumeric or underscore
-                normalized_name = re.sub(r'[^a-z0-9_]', '', normalized_name)
-                
-                # Create filename following the pattern: name_template.docx (like system files)
-                # If it doesn't end with _vorlage or _template, add _template
-                if not normalized_name.endswith('_vorlage') and not normalized_name.endswith('_template'):
-                    normalized_name = normalized_name + '_template'
-                
-                filename = normalized_name + ext
+                # Get secure filename (use original filename as-is)
+                filename = secure_filename(file.filename)
                 
                 # Save file to static/rem folder
                 file_path = os.path.join(rem_folder_path, filename)
                 
-                # If file already exists, add number or timestamp to filename
-                if os.path.exists(file_path):
-                    # Try adding a number first (e.g., name_template_1.docx)
-                    counter = 1
-                    while os.path.exists(file_path):
-                        filename = f"{normalized_name}_{counter}{ext}"
-                        file_path = os.path.join(rem_folder_path, filename)
-                        counter += 1
-                        if counter > 100:  # Safety limit
-                            # Fall back to timestamp
-                            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                            filename = f"{normalized_name}_{timestamp}{ext}"
-                            file_path = os.path.join(rem_folder_path, filename)
-                            break
+                # Check if file already exists
+                file_existed = os.path.exists(file_path)
+                
+                # If file already exists, remove it first (all files can be replaced)
+                if file_existed:
+                    # Remove existing file to replace it
+                    os.remove(file_path)
                 
                 # Save the file
                 file.save(file_path)
                 
-                # Save the button name
-                set_button_name(filename, button_name)
+                # Verify file was saved
+                if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+                    session['upload_error'] = "Fehler beim Speichern der Datei."
+                    return redirect("/upload_template")
                 
-                session['upload_success'] = f"Datei '{filename}' wurde erfolgreich hochgeladen."
+                # Success message
+                action = "ersetzt" if file_existed else "hochgeladen"
+                session['upload_success'] = f"Datei '{filename}' wurde erfolgreich {action}."
+                
                 return redirect("/upload_template")
                 
             except Exception as exception:
@@ -233,56 +203,9 @@ def register_upload_routes(app, db):
         if 'delete_error' in session:
             error_message = session.pop('delete_error')
         
-        # Get active template
-        active_template = get_active_template()
-        
-        # Fetch files from filesystem
-        uploaded_files = []
-        try:
-            if os.path.exists(rem_folder_path):
-                # Get all DOC/DOCX files from the folder
-                for filename in os.listdir(rem_folder_path):
-                    if allowed_file(filename):
-                        file_path = os.path.join(rem_folder_path, filename)
-                        if os.path.isfile(file_path):
-                            # Get file stats
-                            stat = os.stat(file_path)
-                            file_type = filename.rsplit('.', 1)[1].lower()
-                            
-                            # Check if file is protected
-                            is_protected = is_protected_file(filename)
-                            
-                            # Check if file is active
-                            is_active = (filename == active_template)
-                            
-                            # Get button name for this file
-                            button_name = get_button_name(filename)
-                            
-                            # Create file object
-                            file_obj = type('FileInfo', (), {
-                                'filename': filename,
-                                'file_type': file_type,
-                                'file_name': filename,
-                                'button_name': button_name,
-                                'created_at': datetime.fromtimestamp(stat.st_mtime),
-                                'size': stat.st_size,
-                                'file_path': file_path,
-                                'is_protected': is_protected,
-                                'is_user_uploaded': not is_protected,
-                                'is_active': is_active
-                            })()
-                            uploaded_files.append(file_obj)
-                
-                # Sort by creation time (newest first)
-                uploaded_files.sort(key=lambda x: x.created_at, reverse=True)
-        except Exception as e:
-            print(f"Error reading files from {rem_folder_path}: {e}")
-            uploaded_files = []
-        
         return render_template('upload_template.html', 
                              success_message=success_message, 
-                             error_message=error_message,
-                             uploaded_files=uploaded_files)
+                             error_message=error_message)
 
     @app.route("/download_template/<filename>")
     def download_template(filename):
@@ -358,12 +281,6 @@ def register_upload_routes(app, db):
                 if active_template == secure_name:
                     print(f"Deleting active template '{secure_name}', clearing active template setting")
                     set_active_template(None)
-                
-                # Remove button name from config
-                config = get_template_config()
-                if 'button_names' in config and secure_name in config['button_names']:
-                    del config['button_names'][secure_name]
-                    save_template_config(config)
                 
                 os.remove(file_path)
                 session['delete_success'] = f"Datei '{secure_name}' wurde erfolgreich gelöscht."
