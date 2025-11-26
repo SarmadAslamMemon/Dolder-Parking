@@ -2,6 +2,11 @@ from flask import render_template, request, redirect, session, send_file, Respon
 from flask_login import current_user
 from datetime import datetime
 import os
+import stat
+import shutil
+import tempfile
+import subprocess
+import time
 from werkzeug.utils import secure_filename
 import json
 import models
@@ -18,6 +23,14 @@ PROTECTED_FILES = [
     '4_mahnung_vorlage.docx',
     'reminder.docx'
 ]
+
+# Mapping for special upload filenames to actual stored filenames
+UPLOAD_FILENAME_MAPPING = {
+    '1.docx': '1_mahnung_vorlage.docx',
+    '2.docx': '2_mahnung_vorlage.docx',
+    '3.docx': '3_mahnung_vorlage.docx',
+    '4.docx': '4_mahnung_vorlage.docx'
+}
 
 def allowed_file(filename):
     """Check if file has an allowed extension"""
@@ -135,8 +148,13 @@ def register_upload_routes(app, db):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         rem_folder_path = os.path.join(dir_path, REMI_FOLDER)
         
-        # Ensure the rem folder exists
+        # Ensure the rem folder exists with proper permissions
         os.makedirs(rem_folder_path, exist_ok=True)
+        try:
+            # Ensure the directory is writable (0o755 = rwxr-xr-x)
+            os.chmod(rem_folder_path, 0o755)
+        except Exception as chmod_error:
+            print(f"Warning: Could not set directory permissions: {chmod_error}")
         
         if request.method == 'POST':
             # Handle POST request - process upload and redirect
@@ -155,31 +173,341 @@ def register_upload_routes(app, db):
                 return redirect("/upload_template")
             
             try:
-                # Get secure filename (use original filename as-is)
-                filename = secure_filename(file.filename)
+                # Get original filename and secure version
+                original_filename = file.filename
+                uploaded_filename = secure_filename(original_filename)
+                
+                # Check if secure_filename changed the filename
+                if uploaded_filename != original_filename:
+                    print(f"Filename sanitized: '{original_filename}' -> '{uploaded_filename}'")
+                
+                # Check if this is a special filename that needs mapping
+                # If user uploads 1.docx, 2.docx, 3.docx, or 4.docx, map to *_mahnung_vorlage.docx
+                if uploaded_filename in UPLOAD_FILENAME_MAPPING:
+                    filename = UPLOAD_FILENAME_MAPPING[uploaded_filename]
+                else:
+                    # Use the secure filename (sanitized version)
+                    filename = uploaded_filename
                 
                 # Save file to static/rem folder
                 file_path = os.path.join(rem_folder_path, filename)
                 
+                # Clean up any leftover temp files from previous failed uploads
+                try:
+                    for item in os.listdir(rem_folder_path):
+                        if item.startswith('.tmp_upload_'):
+                            temp_item_path = os.path.join(rem_folder_path, item)
+                            try:
+                                # Only remove if it's a file and older than 1 hour (in case it's still being used)
+                                if os.path.isfile(temp_item_path):
+                                    file_age = os.path.getmtime(temp_item_path)
+                                    if time.time() - file_age > 3600:  # 1 hour
+                                        os.remove(temp_item_path)
+                                        print(f"Cleaned up old temp file: {temp_item_path}")
+                            except Exception as cleanup_error:
+                                print(f"Could not clean up temp file {temp_item_path}: {cleanup_error}")
+                except Exception as cleanup_error:
+                    print(f"Error during temp file cleanup: {cleanup_error}")
+                
                 # Check if file already exists
                 file_existed = os.path.exists(file_path)
                 
-                # If file already exists, remove it first (all files can be replaced)
-                if file_existed:
-                    # Remove existing file to replace it
-                    os.remove(file_path)
-                
-                # Save the file
-                file.save(file_path)
-                
-                # Verify file was saved
-                if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
-                    session['upload_error'] = "Fehler beim Speichern der Datei."
+                # Save to a temporary file first, then move it (this handles permissions better)
+                temp_file = None
+                try:
+                    # Get the file extension from the original filename
+                    file_ext = os.path.splitext(filename)[1] or '.docx'
+                    # Create a temporary file in the same directory with the correct extension
+                    temp_fd, temp_file = tempfile.mkstemp(
+                        suffix=file_ext,
+                        dir=rem_folder_path,
+                        prefix='.tmp_upload_'
+                    )
+                    os.close(temp_fd)  # Close the file descriptor, we'll use the path
+                    
+                    # Save the uploaded file to the temporary location
+                    file.save(temp_file)
+                    
+                    # Verify the temp file was saved correctly
+                    if not os.path.exists(temp_file):
+                        session['upload_error'] = f"Fehler beim Speichern der Datei: Temporäre Datei konnte nicht erstellt werden."
+                        return redirect("/upload_template")
+                    
+                    temp_file_size = os.path.getsize(temp_file)
+                    if temp_file_size == 0:
+                        if temp_file and os.path.exists(temp_file):
+                            os.remove(temp_file)
+                        session['upload_error'] = f"Fehler beim Speichern der Datei: Die hochgeladene Datei ist leer."
+                        return redirect("/upload_template")
+                    
+                    print(f"Temp file saved successfully: {temp_file} ({temp_file_size} bytes)")
+                    
+                    # If file already exists, try multiple methods to replace it
+                    if file_existed:
+                        replaced = False
+                        
+                        # Method 1: Try to make writable and remove, then move temp file
+                        try:
+                            current_permissions = os.stat(file_path).st_mode
+                            # Add write permission for owner, group, and others
+                            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)
+                            os.remove(file_path)
+                            # Now move the temp file to the target location
+                            shutil.move(temp_file, file_path)
+                            # Verify it worked
+                            if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                                replaced = True
+                                temp_file = None  # Mark as moved
+                                print(f"Successfully removed and replaced file: {file_path}")
+                            else:
+                                raise Exception("File removed but move failed")
+                        except Exception as method1_error:
+                            print(f"Method 1 (remove and move) failed: {method1_error}")
+                        
+                        # Method 2: Try to overwrite by copying content
+                        if not replaced:
+                            try:
+                                # Try to overwrite by copying the temp file over the existing one
+                                shutil.copy2(temp_file, file_path)
+                                # Verify it worked
+                                if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                                    replaced = True
+                                    # Remove temp file after successful copy
+                                    try:
+                                        os.remove(temp_file)
+                                        temp_file = None  # Mark as moved
+                                    except:
+                                        pass
+                                    print(f"Successfully overwrote file using copy2: {file_path}")
+                                else:
+                                    raise Exception("Copy appeared to succeed but file not found or empty")
+                            except Exception as method2_error:
+                                print(f"Method 2 (copy2) failed: {method2_error}")
+                        
+                        # Method 3: Try to overwrite by reading and writing bytes
+                        if not replaced:
+                            try:
+                                # Read the new file content
+                                with open(temp_file, 'rb') as src:
+                                    content = src.read()
+                                
+                                # Try to write directly to the existing file
+                                with open(file_path, 'wb') as dst:
+                                    dst.write(content)
+                                    dst.flush()
+                                    os.fsync(dst.fileno())
+                                
+                                # Verify it worked
+                                if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                                    replaced = True
+                                    # Remove temp file after successful write
+                                    try:
+                                        os.remove(temp_file)
+                                        temp_file = None  # Mark as moved
+                                    except:
+                                        pass
+                                    print(f"Successfully overwrote file using direct write: {file_path}")
+                                else:
+                                    raise Exception("Direct write appeared to succeed but file not found or empty")
+                            except Exception as method3_error:
+                                print(f"Method 3 (direct write) failed: {method3_error}")
+                        
+                        # Method 4: Try shutil.move (atomic operation)
+                        if not replaced:
+                            try:
+                                # Try to move even if file exists - sometimes works
+                                if os.path.exists(file_path):
+                                    # Create a backup name
+                                    backup_path = file_path + '.old'
+                                    try:
+                                        if os.path.exists(backup_path):
+                                            os.remove(backup_path)
+                                        os.rename(file_path, backup_path)
+                                    except:
+                                        pass
+                                
+                                shutil.move(temp_file, file_path)
+                                # Verify it worked
+                                if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                                    replaced = True
+                                    temp_file = None  # Mark as moved
+                                    print(f"Successfully moved file: {file_path}")
+                                else:
+                                    raise Exception("Move appeared to succeed but file not found or empty")
+                                
+                                # Clean up backup if it exists
+                                backup_path = file_path + '.old'
+                                if os.path.exists(backup_path):
+                                    try:
+                                        os.remove(backup_path)
+                                    except:
+                                        pass
+                            except Exception as method4_error:
+                                print(f"Method 4 (move) failed: {method4_error}")
+                        
+                        # Method 5: Try using subprocess to change permissions (last resort)
+                        if not replaced:
+                            try:
+                                # Try to change file permissions using chmod command
+                                result = subprocess.run(
+                                    ['chmod', '666', file_path],
+                                    capture_output=True,
+                                    text=True,
+                                    timeout=5
+                                )
+                                if result.returncode == 0:
+                                    # Now try to remove and replace
+                                    try:
+                                        os.remove(file_path)
+                                        shutil.move(temp_file, file_path)
+                                        # Verify it worked
+                                        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                                            replaced = True
+                                            temp_file = None  # Mark as moved
+                                            print(f"Successfully replaced file using chmod: {file_path}")
+                                        else:
+                                            raise Exception("Move after chmod appeared to succeed but file not found or empty")
+                                    except Exception as chmod_remove_error:
+                                        print(f"chmod succeeded but remove/move failed: {chmod_remove_error}")
+                                        # Try copy2 again after chmod
+                                        try:
+                                            shutil.copy2(temp_file, file_path)
+                                            # Verify it worked
+                                            if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                                                replaced = True
+                                                try:
+                                                    os.remove(temp_file)
+                                                    temp_file = None  # Mark as moved
+                                                except:
+                                                    pass
+                                                print(f"Successfully replaced file using copy2 after chmod: {file_path}")
+                                            else:
+                                                raise Exception("Copy2 after chmod appeared to succeed but file not found or empty")
+                                        except Exception as copy2_error:
+                                            print(f"Copy2 after chmod also failed: {copy2_error}")
+                            except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as subprocess_error:
+                                print(f"Method 5 (subprocess chmod) failed: {subprocess_error}")
+                        
+                        if not replaced:
+                            # Provide detailed error information
+                            file_stat = None
+                            try:
+                                file_stat = os.stat(file_path)
+                                file_owner = f"UID: {file_stat.st_uid}, GID: {file_stat.st_gid}"
+                                file_perms = oct(file_stat.st_mode)[-3:]
+                            except:
+                                file_owner = "unknown"
+                                file_perms = "unknown"
+                            
+                            error_details = (
+                                f"Could not replace file {file_path} using any method. "
+                                f"File owner: {file_owner}, Permissions: {file_perms}. "
+                                f"Please run in Docker container: 'chmod 666 {file_path}' or 'chown $(whoami) {file_path}'"
+                            )
+                            raise PermissionError(error_details)
+                    else:
+                        # File doesn't exist, just move it
+                        moved_successfully = False
+                        try:
+                            shutil.move(temp_file, file_path)
+                            # Verify the move actually worked
+                            if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                                moved_successfully = True
+                                print(f"Successfully moved new file: {file_path}")
+                                temp_file = None  # Mark as moved so we don't try to delete it
+                            else:
+                                # Move appeared to succeed but file doesn't exist or is empty
+                                raise Exception(f"File move appeared to succeed but file not found or empty at {file_path}")
+                        except Exception as move_error:
+                            # If move fails, try copy2 as fallback
+                            if temp_file and os.path.exists(temp_file):
+                                try:
+                                    shutil.copy2(temp_file, file_path)
+                                    # Verify the copy actually worked
+                                    if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                                        moved_successfully = True
+                                        print(f"Successfully copied new file (fallback): {file_path}")
+                                        try:
+                                            os.remove(temp_file)
+                                            temp_file = None  # Mark as moved so we don't try to delete it
+                                        except:
+                                            pass
+                                    else:
+                                        raise Exception(f"File copy appeared to succeed but file not found or empty at {file_path}")
+                                except Exception as copy_error:
+                                    # Both move and copy failed
+                                    raise Exception(f"Could not save file: move failed ({move_error}), copy failed ({copy_error})")
+                            else:
+                                # Temp file doesn't exist, can't retry
+                                raise Exception(f"Could not save file: move failed ({move_error}), temp file not found")
+                        
+                        if not moved_successfully:
+                            raise Exception("File operation completed but file was not saved successfully")
+                    
+                except PermissionError as perm_error:
+                    error_msg = f"Berechtigung verweigert: Die Datei '{filename}' kann nicht überschrieben werden. Bitte überprüfen Sie die Dateiberechtigungen oder führen Sie 'chmod 644 {file_path}' aus."
+                    print(f"Error saving file: {perm_error}")
+                    if temp_file and os.path.exists(temp_file):
+                        try:
+                            os.remove(temp_file)
+                        except:
+                            pass
+                    session['upload_error'] = error_msg
                     return redirect("/upload_template")
+                except Exception as save_error:
+                    error_msg = f"Fehler beim Speichern der Datei: {str(save_error)}"
+                    print(f"Error saving file: {save_error}")
+                    if temp_file and os.path.exists(temp_file):
+                        try:
+                            os.remove(temp_file)
+                        except:
+                            pass
+                    session['upload_error'] = error_msg
+                    return redirect("/upload_template")
+                finally:
+                    # Clean up temp file if it still exists (shouldn't happen if move succeeded)
+                    if temp_file and os.path.exists(temp_file):
+                        try:
+                            os.remove(temp_file)
+                        except:
+                            pass
+                
+                # Verify file was saved (before we exit the try block)
+                if not os.path.exists(file_path):
+                    error_details = f"Die Datei '{filename}' wurde nicht gefunden nach dem Speichern. Bitte versuchen Sie es erneut."
+                    print(f"Error: File not found after save: {file_path}")
+                    # Clean up any remaining temp files
+                    if temp_file and os.path.exists(temp_file):
+                        try:
+                            os.remove(temp_file)
+                        except:
+                            pass
+                    session['upload_error'] = f"Fehler beim Speichern der Datei: {error_details}"
+                    return redirect("/upload_template")
+                
+                saved_file_size = os.path.getsize(file_path)
+                if saved_file_size == 0:
+                    error_details = f"Die gespeicherte Datei '{filename}' ist leer."
+                    print(f"Error: Saved file is empty: {file_path}")
+                    # Clean up any remaining temp files
+                    if temp_file and os.path.exists(temp_file):
+                        try:
+                            os.remove(temp_file)
+                        except:
+                            pass
+                    session['upload_error'] = f"Fehler beim Speichern der Datei: {error_details}"
+                    return redirect("/upload_template")
+                
+                print(f"File saved successfully: {file_path} ({saved_file_size} bytes)")
                 
                 # Success message
                 action = "ersetzt" if file_existed else "hochgeladen"
-                session['upload_success'] = f"Datei '{filename}' wurde erfolgreich {action}."
+                # Show original filename if it was changed, otherwise show the saved filename
+                if original_filename != filename:
+                    display_name = f"{original_filename} (als '{filename}' gespeichert)"
+                else:
+                    display_name = filename
+                session['upload_success'] = f"Datei '{display_name}' wurde erfolgreich {action}."
                 
                 return redirect("/upload_template")
                 

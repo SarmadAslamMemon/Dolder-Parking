@@ -65,11 +65,164 @@
 {% endif %}
 
 {% if error_message %}
-<div class="notice danger">
+<div class="notice danger" id="error-notice">
 	<i class="fas fa-exclamation-triangle"></i>
 	{{ error_message }}
 </div>
 {% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+	const uploadForm = document.querySelector('form[enctype="multipart/form-data"]');
+	const fileInput = document.getElementById('html_file');
+	const submitButton = uploadForm.querySelector('button[type="submit"]');
+	
+	if (uploadForm && submitButton) {
+		uploadForm.addEventListener('submit', async function(e) {
+			e.preventDefault();
+			
+			// Check if file is selected
+			if (!fileInput.files || fileInput.files.length === 0) {
+				showMessage('Bitte wählen Sie eine Datei aus.', 'error');
+				return;
+			}
+			
+			// Disable submit button and show loading state
+			const originalButtonHTML = submitButton.innerHTML;
+			submitButton.disabled = true;
+			submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird hochgeladen...';
+			
+			try {
+				// Create FormData
+				const formData = new FormData(uploadForm);
+				
+				// Submit form using fetch
+				const response = await fetch('/upload_template', {
+					method: 'POST',
+					body: formData,
+					credentials: 'same-origin',
+					redirect: 'follow'
+				});
+				
+				// Get the HTML response (fetch follows redirects automatically)
+				const html = await response.text();
+				const parser = new DOMParser();
+				const doc = parser.parseFromString(html, 'text/html');
+				
+				// Check for success message in the HTML
+				const successNotice = doc.querySelector('.notice.success');
+				const errorNotice = doc.querySelector('.notice.danger');
+				
+				if (successNotice) {
+					// Extract the message text
+					const messageSpan = successNotice.querySelector('span');
+					const message = messageSpan ? messageSpan.textContent.trim() : successNotice.textContent.trim();
+					showMessage(message, 'success');
+					// Reset form on success
+					uploadForm.reset();
+				} else if (errorNotice) {
+					// Extract the error message text
+					const message = errorNotice.textContent.trim();
+					showMessage(message, 'error');
+				} else {
+					// Check response URL to determine success
+					// If redirected back to /upload_template, check status
+					if (response.ok && response.url.includes('/upload_template')) {
+						// Likely success but message not found in HTML
+						showMessage('Datei wurde erfolgreich hochgeladen!', 'success');
+						uploadForm.reset();
+					} else {
+						showMessage('Fehler beim Hochladen der Datei. Bitte versuchen Sie es erneut.', 'error');
+					}
+				}
+			} catch (error) {
+				console.error('Upload error:', error);
+				showMessage('Fehler beim Hochladen der Datei: ' + error.message, 'error');
+			} finally {
+				// Re-enable submit button
+				submitButton.disabled = false;
+				submitButton.innerHTML = originalButtonHTML;
+			}
+		});
+	}
+	
+	function showMessage(message, type) {
+		// Remove existing messages
+		const existingSuccess = document.getElementById('dynamic-success-notice');
+		const existingError = document.getElementById('dynamic-error-notice');
+		if (existingSuccess) existingSuccess.remove();
+		if (existingError) existingError.remove();
+		
+		// Create new message element
+		const notice = document.createElement('div');
+		notice.id = type === 'success' ? 'dynamic-success-notice' : 'dynamic-error-notice';
+		notice.className = `notice ${type === 'success' ? 'success' : 'danger'}`;
+		notice.style.animation = 'fadeIn 0.3s';
+		notice.style.cursor = 'pointer';
+		notice.title = 'Klicken zum Schließen';
+		
+		const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle';
+		notice.innerHTML = `
+			<i class="fas ${icon}"></i>
+			<span>${message}</span>
+			<i class="fas fa-times" style="margin-left: auto; opacity: 0.7;"></i>
+		`;
+		
+		// Add click handler to close
+		notice.addEventListener('click', function() {
+			notice.style.animation = 'fadeOut 0.3s';
+			setTimeout(() => notice.remove(), 300);
+		});
+		
+		// Insert after the form card section
+		const formCard = document.querySelector('.form-card');
+		if (formCard) {
+			// Insert right after the form card
+			formCard.insertAdjacentElement('afterend', notice);
+		} else {
+			// Fallback: insert after page header
+			const pageHeader = document.querySelector('section.page-header');
+			if (pageHeader) {
+				pageHeader.insertAdjacentElement('afterend', notice);
+			} else {
+				// Last resort: prepend to content
+				const content = document.querySelector('main') || document.body;
+				content.insertBefore(notice, content.firstChild);
+			}
+		}
+		
+		// Auto-hide success messages after 5 seconds
+		if (type === 'success') {
+			setTimeout(() => {
+				if (notice.parentNode) {
+					notice.style.animation = 'fadeOut 0.3s';
+					setTimeout(() => notice.remove(), 300);
+				}
+			}, 5000);
+		}
+		
+		// Scroll to message
+		notice.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+	}
+	
+	// Add CSS animations if not already present
+	if (!document.getElementById('upload-message-styles')) {
+		const style = document.createElement('style');
+		style.id = 'upload-message-styles';
+		style.textContent = `
+			@keyframes fadeIn {
+				from { opacity: 0; transform: translateY(-10px); }
+				to { opacity: 1; transform: translateY(0); }
+			}
+			@keyframes fadeOut {
+				from { opacity: 1; transform: translateY(0); }
+				to { opacity: 0; transform: translateY(-10px); }
+			}
+		`;
+		document.head.appendChild(style);
+	}
+});
+</script>
 
 {% endblock %}
 
